@@ -27,8 +27,8 @@ func Usage() {
   fmt.Fprintln(os.Stderr, "  string combineShares(TPKEPublicKeyThrift PubKey, EncryptedMessageThrift em,  shares)")
   fmt.Fprintln(os.Stderr, "  string decryptShare(TPKEPrivateKeyThrift PrivKey, EncryptedMessageThrift em)")
   fmt.Fprintln(os.Stderr, "  DealerThrift dealer(i32 players, i32 k)")
-  fmt.Fprintln(os.Stderr, "  string aesEncrypt(AESKey key, string raw)")
-  fmt.Fprintln(os.Stderr, "  string aesDecrypt(AESKey key, string encMes)")
+  fmt.Fprintln(os.Stderr, "  string aesEncrypt(AESKeyThrift key, string raw)")
+  fmt.Fprintln(os.Stderr, "  string aesDecrypt(AESKeyThrift key, string encMes)")
   fmt.Fprintln(os.Stderr)
   os.Exit(0)
 }
@@ -367,7 +367,7 @@ func main() {
     }
     factory87 := thrift.NewTJSONProtocolFactory()
     jsProt88 := factory87.GetProtocol(mbTrans85)
-    argvalue0 := encryption.NewAESKey()
+    argvalue0 := encryption.NewAESKeyThrift()
     err89 := argvalue0.Read(context.Background(), jsProt88)
     if err89 != nil {
       Usage()
@@ -394,7 +394,7 @@ func main() {
     }
     factory94 := thrift.NewTJSONProtocolFactory()
     jsProt95 := factory94.GetProtocol(mbTrans92)
-    argvalue0 := encryption.NewAESKey()
+    argvalue0 := encryption.NewAESKeyThrift()
     err96 := argvalue0.Read(context.Background(), jsProt95)
     if err96 != nil {
       Usage()

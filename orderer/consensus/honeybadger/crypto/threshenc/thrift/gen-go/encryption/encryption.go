@@ -1067,19 +1067,19 @@ func (p *DealerThrift) String() string {
 
 // Attributes:
 //  - Key
-type AESKey struct {
+type AESKeyThrift struct {
   Key []byte `thrift:"key,1,required" db:"key" json:"key"`
 }
 
-func NewAESKey() *AESKey {
-  return &AESKey{}
+func NewAESKeyThrift() *AESKeyThrift {
+  return &AESKeyThrift{}
 }
 
 
-func (p *AESKey) GetKey() []byte {
+func (p *AESKeyThrift) GetKey() []byte {
   return p.Key
 }
-func (p *AESKey) Read(ctx context.Context, iprot thrift.TProtocol) error {
+func (p *AESKeyThrift) Read(ctx context.Context, iprot thrift.TProtocol) error {
   if _, err := iprot.ReadStructBegin(ctx); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
   }
@@ -1122,7 +1122,7 @@ func (p *AESKey) Read(ctx context.Context, iprot thrift.TProtocol) error {
   return nil
 }
 
-func (p *AESKey)  ReadField1(ctx context.Context, iprot thrift.TProtocol) error {
+func (p *AESKeyThrift)  ReadField1(ctx context.Context, iprot thrift.TProtocol) error {
   if v, err := iprot.ReadBinary(ctx); err != nil {
   return thrift.PrependError("error reading field 1: ", err)
 } else {
@@ -1131,8 +1131,8 @@ func (p *AESKey)  ReadField1(ctx context.Context, iprot thrift.TProtocol) error 
   return nil
 }
 
-func (p *AESKey) Write(ctx context.Context, oprot thrift.TProtocol) error {
-  if err := oprot.WriteStructBegin(ctx, "AESKey"); err != nil {
+func (p *AESKeyThrift) Write(ctx context.Context, oprot thrift.TProtocol) error {
+  if err := oprot.WriteStructBegin(ctx, "AESKeyThrift"); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err) }
   if p != nil {
     if err := p.writeField1(ctx, oprot); err != nil { return err }
@@ -1144,7 +1144,7 @@ func (p *AESKey) Write(ctx context.Context, oprot thrift.TProtocol) error {
   return nil
 }
 
-func (p *AESKey) writeField1(ctx context.Context, oprot thrift.TProtocol) (err error) {
+func (p *AESKeyThrift) writeField1(ctx context.Context, oprot thrift.TProtocol) (err error) {
   if err := oprot.WriteFieldBegin(ctx, "key", thrift.STRING, 1); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:key: ", p), err) }
   if err := oprot.WriteBinary(ctx, p.Key); err != nil {
@@ -1154,7 +1154,7 @@ func (p *AESKey) writeField1(ctx context.Context, oprot thrift.TProtocol) (err e
   return err
 }
 
-func (p *AESKey) Equals(other *AESKey) bool {
+func (p *AESKeyThrift) Equals(other *AESKeyThrift) bool {
   if p == other {
     return true
   } else if p == nil || other == nil {
@@ -1164,11 +1164,11 @@ func (p *AESKey) Equals(other *AESKey) bool {
   return true
 }
 
-func (p *AESKey) String() string {
+func (p *AESKeyThrift) String() string {
   if p == nil {
     return "<nil>"
   }
-  return fmt.Sprintf("AESKey(%+v)", *p)
+  return fmt.Sprintf("AESKeyThrift(%+v)", *p)
 }
 
 type TPKEService interface {
@@ -1197,11 +1197,11 @@ type TPKEService interface {
   // Parameters:
   //  - Key
   //  - Raw
-  AesEncrypt(ctx context.Context, key *AESKey, raw []byte) (_r []byte, _err error)
+  AesEncrypt(ctx context.Context, key *AESKeyThrift, raw []byte) (_r []byte, _err error)
   // Parameters:
   //  - Key
   //  - EncMes
-  AesDecrypt(ctx context.Context, key *AESKey, encMes []byte) (_r []byte, _err error)
+  AesDecrypt(ctx context.Context, key *AESKeyThrift, encMes []byte) (_r []byte, _err error)
 }
 
 type TPKEServiceClient struct {
@@ -1337,7 +1337,7 @@ func (p *TPKEServiceClient) Dealer(ctx context.Context, players int32, k int32) 
 // Parameters:
 //  - Key
 //  - Raw
-func (p *TPKEServiceClient) AesEncrypt(ctx context.Context, key *AESKey, raw []byte) (_r []byte, _err error) {
+func (p *TPKEServiceClient) AesEncrypt(ctx context.Context, key *AESKeyThrift, raw []byte) (_r []byte, _err error) {
   var _args21 TPKEServiceAesEncryptArgs
   _args21.Key = key
   _args21.Raw = raw
@@ -1354,7 +1354,7 @@ func (p *TPKEServiceClient) AesEncrypt(ctx context.Context, key *AESKey, raw []b
 // Parameters:
 //  - Key
 //  - EncMes
-func (p *TPKEServiceClient) AesDecrypt(ctx context.Context, key *AESKey, encMes []byte) (_r []byte, _err error) {
+func (p *TPKEServiceClient) AesDecrypt(ctx context.Context, key *AESKeyThrift, encMes []byte) (_r []byte, _err error) {
   var _args24 TPKEServiceAesDecryptArgs
   _args24.Key = key
   _args24.EncMes = encMes
@@ -3281,7 +3281,7 @@ func (p *TPKEServiceDealerResult) String() string {
 //  - Key
 //  - Raw
 type TPKEServiceAesEncryptArgs struct {
-  Key *AESKey `thrift:"key,1" db:"key" json:"key"`
+  Key *AESKeyThrift `thrift:"key,1" db:"key" json:"key"`
   Raw []byte `thrift:"raw,2" db:"raw" json:"raw"`
 }
 
@@ -3289,8 +3289,8 @@ func NewTPKEServiceAesEncryptArgs() *TPKEServiceAesEncryptArgs {
   return &TPKEServiceAesEncryptArgs{}
 }
 
-var TPKEServiceAesEncryptArgs_Key_DEFAULT *AESKey
-func (p *TPKEServiceAesEncryptArgs) GetKey() *AESKey {
+var TPKEServiceAesEncryptArgs_Key_DEFAULT *AESKeyThrift
+func (p *TPKEServiceAesEncryptArgs) GetKey() *AESKeyThrift {
   if !p.IsSetKey() {
     return TPKEServiceAesEncryptArgs_Key_DEFAULT
   }
@@ -3353,7 +3353,7 @@ func (p *TPKEServiceAesEncryptArgs) Read(ctx context.Context, iprot thrift.TProt
 }
 
 func (p *TPKEServiceAesEncryptArgs)  ReadField1(ctx context.Context, iprot thrift.TProtocol) error {
-  p.Key = &AESKey{}
+  p.Key = &AESKeyThrift{}
   if err := p.Key.Read(ctx, iprot); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Key), err)
   }
@@ -3513,7 +3513,7 @@ func (p *TPKEServiceAesEncryptResult) String() string {
 //  - Key
 //  - EncMes
 type TPKEServiceAesDecryptArgs struct {
-  Key *AESKey `thrift:"key,1" db:"key" json:"key"`
+  Key *AESKeyThrift `thrift:"key,1" db:"key" json:"key"`
   EncMes []byte `thrift:"encMes,2" db:"encMes" json:"encMes"`
 }
 
@@ -3521,8 +3521,8 @@ func NewTPKEServiceAesDecryptArgs() *TPKEServiceAesDecryptArgs {
   return &TPKEServiceAesDecryptArgs{}
 }
 
-var TPKEServiceAesDecryptArgs_Key_DEFAULT *AESKey
-func (p *TPKEServiceAesDecryptArgs) GetKey() *AESKey {
+var TPKEServiceAesDecryptArgs_Key_DEFAULT *AESKeyThrift
+func (p *TPKEServiceAesDecryptArgs) GetKey() *AESKeyThrift {
   if !p.IsSetKey() {
     return TPKEServiceAesDecryptArgs_Key_DEFAULT
   }
@@ -3585,7 +3585,7 @@ func (p *TPKEServiceAesDecryptArgs) Read(ctx context.Context, iprot thrift.TProt
 }
 
 func (p *TPKEServiceAesDecryptArgs)  ReadField1(ctx context.Context, iprot thrift.TProtocol) error {
-  p.Key = &AESKey{}
+  p.Key = &AESKeyThrift{}
   if err := p.Key.Read(ctx, iprot); err != nil {
     return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Key), err)
   }

@@ -77,7 +77,9 @@ func main() {
 		transportFactory = thrift.NewTFramedTransportFactoryConf(transportFactory, cfg)
 	}
 
-	if err := runClient(transportFactory, protocolFactory, *addr, *secure, cfg); err != nil {
-        fmt.Println("error running client:", err)
-    }
+// 	if err := runClient(transportFactory, protocolFactory, *addr, *secure, cfg); err != nil {
+//         fmt.Println("error running client:", err)
+//     }
+
+    dealer(10, 5)
 }

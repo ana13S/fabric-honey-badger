@@ -33,7 +33,7 @@ struct DealerThrift {
     2: required list<TPKEPrivateKeyThrift> PrivKeys
 }
 
-struct AESKey {
+struct AESKeyThrift {
     1: required binary key
 }
 
@@ -61,11 +61,11 @@ service TPKEService {
         2: i32 k
     ),
     binary aesEncrypt(
-        1: AESKey key,
+        1: AESKeyThrift key,
         2: binary raw
     ),
     binary aesDecrypt(
-        1: AESKey key,
+        1: AESKeyThrift key,
         2: binary encMes
     )
 }
