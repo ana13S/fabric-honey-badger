@@ -1,4 +1,4 @@
-module main
+module go_threshenc
 
 go 1.17
 

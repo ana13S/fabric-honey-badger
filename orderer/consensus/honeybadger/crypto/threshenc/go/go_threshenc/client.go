@@ -1,4 +1,4 @@
-package main
+package go_threshenc
 
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -68,9 +68,9 @@ func getVerificationKeyFromThrift(verKey *encryption.VerificationKeyThrift) (*Ve
     }
 }
 
-func convertVerificationKeyToThrift(verKey *VerificationKey) (encryption*VerificationKeyThrift) {
-    var verKeyThrift = NewVerificationKeyThrift()
-    *verKeyThrift.Key = *verKey.key
+func convertVerificationKeyToThrift(verKey *VerificationKey) (*encryption.VerificationKeyThrift) {
+    var verKeyThrift = encryption.NewVerificationKeyThrift()
+    verKeyThrift.Key = verKey.key
     return verKeyThrift
 }
 
@@ -82,7 +82,7 @@ func getSecretKeyFromThrift(secKey *encryption.PrivateKeyThrift) (*SecretKey) {
 
 func convertSecretKeyToThrift(secretKey *SecretKey) (*encryption.PrivateKeyThrift) {
     var secretKeyThrift = encryption.NewPrivateKeyThrift()
-    *secretKeyThrift.Key = *secretKey.key
+    secretKeyThrift.Key = secretKey.key
     return secretKeyThrift
 }
 
@@ -90,15 +90,15 @@ func getEncryptedMsgFromThrift(em *encryption.EncryptedMessageThrift) (*Encrypte
     return &EncryptedMessage{
         U: em.GetU(),
         V: em.GetV(),
-        W: em.GetW()
+        W: em.GetW(),
     }
 }
 
 func convertEncryptedMsgToThrift(em *EncryptedMessage) (*encryption.EncryptedMessageThrift) {
     var emThrift = encryption.NewEncryptedMessageThrift()
-    *emThrift.U = *em.U
-    *emThrift.V = *em.V
-    *emThrift.W = *em.W
+    emThrift.U = em.U
+    emThrift.V = em.V
+    emThrift.W = em.W
     return emThrift
 }
 
@@ -117,15 +117,15 @@ func getTPKEPublicKeyFromThrift(pubKey *encryption.TPKEPublicKeyThrift) (*TPKEPu
 
 func convertTPKEPublicKeyToThrift(pubKey *TPKEPublicKey) (*encryption.TPKEPublicKeyThrift) {
     var pubKeyThrift = encryption.NewTPKEPublicKeyThrift()
-    *pubKeyThrift.L = *pubKey.l
-    *pubKeyThrift.K = *pubKey.k
-    *pubKeyThrift.VK = convertVerificationKeyToThrift(*pubKey.VK)
+    pubKeyThrift.L = pubKey.l
+    pubKeyThrift.K = pubKey.k
+    pubKeyThrift.VK = convertVerificationKeyToThrift(pubKey.VK)
 
     var VKs []*encryption.VerificationKeyThrift
     for _, vk := range pubKey.VKs {
         VKs = append(VKs, convertVerificationKeyToThrift(vk))  // note the = instead of :=
     }
-    *pubKeyThrift.VKs = VKs
+    pubKeyThrift.VKs = VKs
     return pubKeyThrift
 }
 
@@ -139,9 +139,9 @@ func getTPKEPrivateKeyFromThrift(privKey *encryption.TPKEPrivateKeyThrift) (*TPK
 
 func convertTPKEPrivateKeyToThrift(privKey *TPKEPrivateKey) (*encryption.TPKEPrivateKeyThrift) {
     var privKeyThrift = encryption.NewTPKEPrivateKeyThrift()
-    *privKeyThrift.PubKey = convertTPKEPublicKeyToThrift(*privKey.PubKey)
-    *privKeyThrift.SK = convertSecretKeyToThrift(*privKey.SK)
-    *privKeyThrift.I = *privKey.I
+    privKeyThrift.PubKey = convertTPKEPublicKeyToThrift(privKey.PubKey)
+    privKeyThrift.SK = convertSecretKeyToThrift(privKey.SK)
+    privKeyThrift.I = privKey.i
     return privKeyThrift
 }
 
@@ -160,9 +160,9 @@ func getAESKeyFromThrift(verKey *encryption.AESKeyThrift) (*AESKey) {
     }
 }
 
-func convertAESKeyToThrift(verKey *AESKey) (encryption*AESKeyThrift) {
-    var aesKeyThrift = NewAESKeyThrift()
-    *aesKeyThrift.Key = *aesKey.key
+func convertAESKeyToThrift(aesKey *AESKey) (*encryption.AESKeyThrift) {
+    var aesKeyThrift = encryption.NewAESKeyThrift()
+    aesKeyThrift.Key = aesKey.key
     return aesKeyThrift
 }
 
@@ -278,9 +278,9 @@ func (pubKey *TPKEPublicKey) combineShares(U []byte, V []byte, W []byte, shares 
 
     pubKeyThrift := convertTPKEPublicKeyToThrift(pubKey)
     var emThrift = encryption.NewEncryptedMessageThrift()
-    *emThrift.U = U
-    *emThrift.V = V
-    *emThrift.W = W
+    emThrift.U = U
+    emThrift.V = V
+    emThrift.W = W
 
     val, err := client.CombineShares(defaultCtx, pubKeyThrift, emThrift, shares)
     if err != nil {
@@ -303,9 +303,9 @@ func (privKey *TPKEPrivateKey) decryptShare(U []byte, V []byte, W []byte) []byte
 
     privKeyThrift := convertTPKEPrivateKeyToThrift(privKey)
     var emThrift = encryption.NewEncryptedMessageThrift()
-    *emThrift.U = U
-    *emThrift.V = V
-    *emThrift.W = W
+    emThrift.U = U
+    emThrift.V = V
+    emThrift.W = W
 
     val, err := client.DecryptShare(defaultCtx, privKeyThrift, emThrift)
     if err != nil {
