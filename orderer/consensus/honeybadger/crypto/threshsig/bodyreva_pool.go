@@ -6,49 +6,64 @@ import (
 	"crypto/sha256"
 	"fmt"
 
-	"./tcrsa"
+	tcrsa "github.com/niclabs/tcrsa"
 )
 
-var k int16 = 3 // Can change this in the future
-var l int16 = 5
+var k uint16
 
-func generate_sigs(msg string, size int) {
+const hashType = crypto.SHA256
 
-	keyShares, keyMeta, err := tcrsa.NewKey(size, uint16(k), uint16(l), nil)
+// n is number of parties, k = id
+func dealer(N int, K int, size int) (shares tcrsa.KeyShareList, meta *tcrsa.KeyMeta, err error) {
+	n := uint16(N)
+	k = uint16(K)
+
+	// Generate keys
+	keyShares, keyMeta, err := tcrsa.NewKey(size, k, n, nil)
 	if err != nil {
 		panic(fmt.Sprintf("%v", err))
 	}
 
+	return keyShares, keyMeta, err
+}
+
+func hash_message(msg string, keyMeta *tcrsa.KeyMeta) ([]byte, []byte) {
 	docHash := sha256.Sum256([]byte(msg))
 	docPKCS1, err := tcrsa.PrepareDocumentHash(keyMeta.PublicKey.Size(), crypto.SHA256, docHash[:])
 	if err != nil {
 		panic(fmt.Sprintf("%v", err))
 	}
-
-	sigShares := make(tcrsa.SigShareList, l)
-	return keyMeta, keyShares, sigShares, docPKCS1, docHash
+	return docHash[:], docPKCS1
 }
 
-func combine_and_verify(keyMeta KeyMeta, keyShares KeyShareList, sigShares SigShareList, docPK []byte, docHash []byte) {
+func combine(K int, docPK []byte, keyShares tcrsa.KeyShareList, meta *tcrsa.KeyMeta) tcrsa.Signature {
+	sigShares := make(tcrsa.SigShareList, k)
 	var i uint16
+	var err error
 
-	for i = 0; i < l; i++ {
-		sigShares[i], err = keyShares[i].Sign(docPK, crypto.SHA256, keyMeta)
+	// Sign with each node
+	for i = 0; i < k; i++ {
+		sigShares[i], err = keyShares[i].Sign(docPK, hashType, meta)
 		if err != nil {
 			panic(fmt.Sprintf("%v", err))
 		}
-		if err := sigShares[i].Verify(docPKCS1, keyMeta); err != nil {
+		if err := sigShares[i].Verify(docPK, meta); err != nil {
 			panic(fmt.Sprintf("%v", err))
 		}
 	}
 
-	signature, err := sigShares.Join(docPK, keyMeta)
+	// Combine to create a real signature.
+	signature, err := sigShares.Join(docPK, meta)
 	if err != nil {
 		panic(fmt.Sprintf("%v", err))
 	}
 
-	if err := rsa.VerifyPKCS1v15(keyMeta.PublicKey, crypto.SHA256, docHash[:], signature); err != nil {
+	return signature
+}
+
+func verify(meta *tcrsa.KeyMeta, docHash []byte, signature tcrsa.Signature) {
+	// Check signature
+	if err := rsa.VerifyPKCS1v15(meta.PublicKey, crypto.SHA256, docHash[:], signature); err != nil {
 		panic(fmt.Sprintf("%v", err))
 	}
-
 }
