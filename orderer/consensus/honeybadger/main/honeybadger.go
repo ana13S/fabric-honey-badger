@@ -33,6 +33,10 @@ type honeybadger struct {
 	transaction_buffer []string
 }
 
+type broadcastIface func(*zmq.Socket, []string, string, string)
+
+type sendMessagesIface func(*zmq.Socket, string, string)
+
 func (hb *honeybadger) submit_tx(tx string) {
 	hb.transaction_buffer = append(hb.transaction_buffer, tx)
 }
@@ -72,7 +76,7 @@ func remove(txns []string, txn string) []string {
 	return txns
 }
 
-func (c *zmq.Socket) sendMessages(port string, msg string) {
+func sendMessages(c *zmq.Socket, port string, msg string) {
 	//Client port that sends messages
 	c.Connect("tcp://localhost:" + port)
 	c.Send(msg, 0)
@@ -99,7 +103,7 @@ func recvMessages(zctx *zmq.Context, port string) {
 	}
 }
 
-func (c *zmq.Socket) broadcast(all_ports []string, serverPort string, msg string) {
+func broadcast(c *zmq.Socket, all_ports []string, serverPort string, msg string) {
 	for i := 0; i < len(all_ports); i++ {
 		if all_ports[i] != serverPort {
 			c.sendMessages(all_ports[i], msg)
@@ -119,14 +123,14 @@ func (hb *honeybadger) run_round(c *zmq.Socket, all_ports []string, serverPort s
 
 	my_rbc_input := make(chan string)
 
-	setup := func(j int) {
+	setup := func(j int32) {
 		coin_bcast := func(o int) {
-			c.broadcast(all_ports, serverPort, "ACS_COIN"+strconv.Itoa(j)+strconv.Itoa(o))
+			broadcast(c, all_ports, serverPort, "ACS_COIN"+strconv.Itoa(j)+strconv.Itoa(o))
 		}
 		coin_recvs[j] = make(chan string)
 
 		aba_bcast := func(o int) {
-			c.broadcast(all_ports, serverPort, "ACS_ABA"+strconv.Itoa(j)+strconv.Itoa(o))
+			broadcast(c, all_ports, serverPort, "ACS_ABA"+strconv.Itoa(j)+strconv.Itoa(o))
 		}
 		aba_recvs[j] = make(chan string)
 
@@ -138,12 +142,13 @@ func (hb *honeybadger) run_round(c *zmq.Socket, all_ports []string, serverPort s
 		go reliablebroadcast(hb.sid, hb.pid, hb.N, hb.f, j, my_rbc_input, rbc_recvs[j], rbc_send)
 	}
 
-	for j := 0; j < hb.N; j++ {
+	var j int32
+	for j = 0; j < hb.N; j++ {
 		setup(j)
 	}
 
 	tpke_bcast := func(o int) {
-		c.broadcast(all_ports, serverPort, "ACS_RBC"+strconv.Itoa(0)+strconv.Itoa(o))
+		broadcast(c, all_ports, serverPort, "ACS_RBC"+strconv.Itoa(0)+strconv.Itoa(o))
 	}
 
 	tpke_recv = make(chan string)
