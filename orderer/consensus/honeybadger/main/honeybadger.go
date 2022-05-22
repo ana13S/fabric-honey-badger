@@ -17,6 +17,10 @@ const ACS_RBC = "ACS_RBC"
 const ACS_ABA = "ACS_ABA"
 const TPKE = "TPKE"
 
+all_ports := []string{"5000", "5010", "5020", "5030"}
+var socket *zmq.Socket
+var serverPort string
+
 type honeybadger struct {
 	sid                string
 	pid                int32
@@ -33,9 +37,11 @@ type honeybadger struct {
 	transaction_buffer []string
 }
 
-type broadcastIface func(*zmq.Socket, []string, string, string)
+type broadcastIface func(*zmq.Socket, []string, string, interface)
 
-type sendMessagesIface func(*zmq.Socket, string, string)
+type sendMessagesIface func(*zmq.Socket, string, interface)
+
+type getCoinIface func(r int32)
 
 func (hb *honeybadger) submit_tx(tx string) {
 	hb.transaction_buffer = append(hb.transaction_buffer, tx)
@@ -76,10 +82,10 @@ func remove(txns []string, txn string) []string {
 	return txns
 }
 
-func sendMessages(c *zmq.Socket, port string, msg string) {
+func sendMessages(port string, msg interface) {
 	//Client port that sends messages
-	c.Connect("tcp://localhost:" + port)
-	c.Send(msg, 0)
+	socket.Connect("tcp://localhost:" + port)
+	socket.Send(msg, 0)
 
 	//     msg, _ := c.Recv(0)
 	//     fmt.Printf("Received reply %d [ %s ]\n", i, msg)
@@ -103,10 +109,10 @@ func recvMessages(zctx *zmq.Context, port string) {
 	}
 }
 
-func broadcast(c *zmq.Socket, all_ports []string, serverPort string, msg string) {
+func broadcast(msg interface) {
 	for i := 0; i < len(all_ports); i++ {
 		if all_ports[i] != serverPort {
-			c.sendMessages(all_ports[i], msg)
+			sendMessages(all_ports[i], msg)
 		}
 	}
 }
@@ -128,11 +134,33 @@ func (hb *honeybadger) run_round(c *zmq.Socket, all_ports []string, serverPort s
 			broadcast(c, all_ports, serverPort, "ACS_COIN"+strconv.Itoa(j)+strconv.Itoa(o))
 		}
 		coin_recvs[j] = make(chan string)
+		coin := make(chan int)
+		go shared_coin(
+			sid=hb.sid+"COIN"+Itoa(j),
+			pid=hb.pid,
+			N=hb.N,
+			f=hb.f,
+			PK=hb.sPK,
+			SK=hb.sSK,
+			broadcast=coin_bcast,
+			receive=coin_recvs[j]
+		)
 
 		aba_bcast := func(o int) {
 			broadcast(c, all_ports, serverPort, "ACS_ABA"+strconv.Itoa(j)+strconv.Itoa(o))
 		}
 		aba_recvs[j] = make(chan string)
+		go binaryagreement(
+			sid=hb.sid + "ABA"+Itoa(j), 
+			pid=hb.pid, 
+			N=hb.N, 
+			f=hb.f, 
+			coin=coin, 
+			input=aba_inputs[j], 
+			decide=aba_outputs[j], 
+			broadcast=broadcast,
+			receive=aba_recvs[j]
+		)
 
 		rbc_send := func(k int, o int) {
 			c.sendMessages(k, "ACS_RBC"+strconv.Itoa(j)+strconv.Itoa(o))
@@ -181,7 +209,6 @@ func main() {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	var serverPort string
 	for scanner.Scan() {
 		serverPort = scanner.Text()
 		break
@@ -195,7 +222,7 @@ func main() {
 
 	go recvMessages(zctx, serverPort)
 
-	c, _ := zctx.NewSocket(zmq.REQ)
+	socket, _ := zctx.NewSocket(zmq.REQ)
 	if serverPort != "5000" {
 		sendMessages(c, "5000", "Random message from "+serverPort)
 	}
