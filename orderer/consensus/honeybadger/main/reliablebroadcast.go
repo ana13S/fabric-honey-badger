@@ -178,7 +178,7 @@ func merkleVerify(val []byte, roothash []byte, branch [][]byte) bool {
 
 }
 
-func reliablebroadcast(sid int, pid int, N int, f int, leader int, input func() string, receive func() (int, []interface{}), send func(int, []interface{}), killChan <-chan string, joinChan chan<- string) string {
+func reliablebroadcast(sid int, pid int, N int, f int, leader int, input func() string, receive func() (int, []interface{}), send func(int, []interface{}), killChan <-chan string, joinChan chan<- string, retChan chan<- string) string {
 
 	for {
 		select {
@@ -291,7 +291,7 @@ func reliablebroadcast(sid int, pid int, N int, f int, leader int, input func() 
 					}
 
 					if ready[string(roothash)].Cardinality() >= OutputThreshold && echoCounter[string(roothash)] >= K {
-						return decode_output(roothash)
+						retChan <- decode_output(roothash)
 					}
 
 				} else if msg[0] == "READY" {
@@ -306,7 +306,7 @@ func reliablebroadcast(sid int, pid int, N int, f int, leader int, input func() 
 					}
 
 					if ready[string(roothash)].Cardinality() >= OutputThreshold && echoCounter[string(roothash)] >= K {
-						return decode_output(roothash)
+						retChan <- decode_output(roothash)
 					}
 				}
 
