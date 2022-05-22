@@ -8,7 +8,7 @@ import (
 	"os"
 	"strconv"
 	"time"
-
+	tcrsa "github.com/niclabs/tcrsa"
 	zmq "github.com/pebbe/zmq4"
 )
 
@@ -27,8 +27,8 @@ type honeybadger struct {
 	B                  int32
 	N                  int32
 	f                  int32
-	sPK                []byte
-	sSK                []byte
+	sPK                tcrsa.KeyMeta
+	sSK                tcrsa.keyShare
 	ePK                []byte
 	eSK                []byte
 	send               chan []byte
@@ -122,6 +122,7 @@ func (hb *honeybadger) run_round(c *zmq.Socket, all_ports []string, serverPort s
 	rbc_outputs := make([](chan int), hb.N)
 
 	my_rbc_input := make(chan string)
+	get_coin_channel := make(chan (func(int) int))
 
 	setup := func(j int32) {
 		coin_bcast := func(o int) {
@@ -134,10 +135,11 @@ func (hb *honeybadger) run_round(c *zmq.Socket, all_ports []string, serverPort s
 			pid=hb.pid,
 			N=hb.N,
 			f=hb.f,
-			PK=hb.sPK,
-			SK=hb.sSK,
+			meta=hb.sPK,
+			share=hb.sSK,
 			broadcast=coin_bcast,
-			receive=coin_recvs[j]
+			receive=coin_recvs[j],
+			getCoinFunc=get_coin_channel
 		)
 
 		aba_bcast := func(o int) {
