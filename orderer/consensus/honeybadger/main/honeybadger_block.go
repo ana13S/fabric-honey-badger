@@ -14,7 +14,7 @@ import (
 )
 
 func honeybadgerBlock(pid int32, N int32, f int32, PK *go_threshenc.TPKEPublicKey, SK *go_threshenc.TPKEPrivateKey, 
-    propose_in <-chan string, acs_in <-chan []string, acs_out <-chan []string, block chan<- map[int32][]byte, 
+    propose_in <-chan string, acs_in <-chan []string, acs_out <-chan []string, hb_block chan<- map[int32][]byte, 
     tpke_bcast, tpke_recv <-chan []string) {
     /**The HoneyBadgerBFT algorithm for a single block
 
@@ -23,9 +23,10 @@ func honeybadgerBlock(pid int32, N int32, f int32, PK *go_threshenc.TPKEPublicKe
     :param f: fault tolerance
     :param PK: threshold encryption public key
     :param SK: threshold encryption secret key
-    :param propose_in: a function returning a sequence of transactions
-    :param acs_in: a function to provide input to acs routine
-    :param acs_out: a blocking function that returns an array of ciphertexts
+    :param propose_in: a channel returning a sequence of transactions
+    :param acs_in: a channel to provide input to acs routine
+    :param acs_out: a blocking channel that returns an array of ciphertexts
+    :param hp_block: a channel that returns a dictionary of shares received
     :param tpke_bcast:
     :param tpke_recv:
     :return:
