@@ -86,9 +86,6 @@ func sendMessages(port string, msg interface) {
 	//Client port that sends messages
 	socket.Connect("tcp://localhost:" + port)
 	socket.Send(msg, 0)
-
-	//     msg, _ := c.Recv(0)
-	//     fmt.Printf("Received reply %d [ %s ]\n", i, msg)
 }
 
 func recvMessages(zctx *zmq.Context, port string) {
@@ -103,9 +100,6 @@ func recvMessages(zctx *zmq.Context, port string) {
 
 		// Do some 'work'
 		time.Sleep(time.Second * 1)
-
-		// Send reply back to client
-		//         s.Send("World", 0)
 	}
 }
 
@@ -181,8 +175,13 @@ func (hb *honeybadger) run_round(c *zmq.Socket, all_ports []string, serverPort s
 
 	tpke_recv = make(chan string)
 
-	go commonsubset(hb.pid, hb.N, hb.f, rbc_outputs, aba_inputs, aba_outputs)
-	return txn
+	rbc_values = make([]chan string)
+	go commonsubset(hb.pid, hb.N, hb.f, rbc_outputs, aba_inputs, aba_outputs, rbc_values)
+	_input := make(chan string)
+	_input <- txn
+
+	hb_block = make(chan []string)
+	honeybadgerBlock(hb.pid, hb.N, hb.f, propose_in=_input, acs_in=my_rbc_input, acs_out=rbc_values, hb_block=hb_block)	
 }
 
 func (hb *honeybadger) run() {
