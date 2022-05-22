@@ -178,7 +178,10 @@ func merkleVerify(val []byte, roothash []byte, branch [][]byte) bool {
 
 }
 
-func reliablebroadcast(sid int, pid int, N int, f int, leader int, input func() string, receive func() (int, []interface{}), send func(int, []interface{})) string {
+/**
+ * TODO: May have to edit receive/send arguments to use a struct so it's easier to call from honeybadger since we'll know the exact types to pass in
+ */
+func reliablebroadcast(sid int, pid int, N int, f int, leader int, input <-chan string, receive func() (int, []interface{}), send func(int, []interface{})) string {
 
 	K := N - 2*f            // Need this many to reconstruct. (# noqa: E221)
 	EchoThreshold := N - f  // Wait for this many ECHO to send READY. (# noqa: E221)
@@ -193,7 +196,7 @@ func reliablebroadcast(sid int, pid int, N int, f int, leader int, input func() 
 
 	var m string
 	if pid == leader {
-		m = input()
+		m = <-input
 
 		stripes := encode(K, N, m)
 
