@@ -7,12 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func commonsubset(pid int, N int, f int, rbc_out []func() string, aba_in []func(x int), aba_out []func() int, t *testing.T) []string {
+// We are supporting only one transaction at a time
+// That's why rbc_out[i] returns one string (represents a transaction)
+func commonsubset(pid int, N int, f int, rbc_out []<-chan string, aba_in []chan<- int, aba_out []<-chan int, rbc_values []chan string, t *testing.T) {
 
 	// setup collector slices
 	aba_inputted := make([]bool, N)
 	aba_values := make([]int, N)
-	rbc_values := make([]string, N)
 
 	// recv_rbc kill channels
 	recv_rbc_killChans := make([]chan string, N)
@@ -38,13 +39,13 @@ func commonsubset(pid int, N int, f int, rbc_out []func() string, aba_in []func(
 			// otherwise run
 			default:
 				// Receive output from reliable broadcast
-				rbc_values[j] = rbc_out[j]()
+				rbc_values[j] <- (<-rbc_out[j])
 
 				if !aba_inputted[j] {
 
 					aba_inputted[j] = true
 
-					aba_in[j](1)
+					aba_in[j] <- 1
 				}
 
 				// output "finished" to joinChan, can wait for joinChan as a blocker
@@ -61,7 +62,7 @@ func commonsubset(pid int, N int, f int, rbc_out []func() string, aba_in []func(
 	recv_aba := func(j int, wg *sync.WaitGroup) {
 		defer wg.Done()
 
-		aba_values[j] = aba_out[j]()
+		aba_values[j] = <-aba_out[j]
 
 		// count number of non-zero positions in aba_values
 		arrSum := 0
@@ -76,7 +77,7 @@ func commonsubset(pid int, N int, f int, rbc_out []func() string, aba_in []func(
 				if !aba_inputted[i] {
 					aba_inputted[i] = true
 
-					aba_in[i](0)
+					aba_in[i] <- 0
 				}
 			}
 		}
@@ -108,13 +109,15 @@ func commonsubset(pid int, N int, f int, rbc_out []func() string, aba_in []func(
 			<-recv_rbc_joinChans[j]
 
 			// nonetype error handling
-			assert.NotEqual(t, rbc_values[j], "")
+			// Check value in rbc
+			val := <-rbc_values[j]
+			assert.NotEqual(t, val, "")
 		} else {
 
 			recv_rbc_killChans[j] <- "kill"
-			rbc_values[j] = ""
+			rbc_values[j] <- ""
 		}
 	}
 
-	return rbc_values
+	// Return values can be received through rbc_values channels
 }

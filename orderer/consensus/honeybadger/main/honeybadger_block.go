@@ -1,4 +1,4 @@
-package core
+package main
 
 import (
 	"context"
@@ -13,8 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func honeybadgerBlock(pid int32, N int32, f int32, PK *go_threshenc.TPKEPublicKey, SK *go_threshenc.TPKEPrivateKey, propose_in, acs_in, acs_out, tpke_bcast, tpke_recv):
-    """The HoneyBadgerBFT algorithm for a single block
+func honeybadgerBlock(pid int32, N int32, f int32, PK *go_threshenc.TPKEPublicKey, SK *go_threshenc.TPKEPrivateKey, 
+    propose_in <-chan string, acs_in <-chan []string, acs_out <-chan []string, block chan<- map[int32][]byte, 
+    tpke_bcast, tpke_recv <-chan []string) {
+    /**The HoneyBadgerBFT algorithm for a single block
 
     :param pid: my identifier
     :param N: number of nodes
@@ -27,29 +29,27 @@ func honeybadgerBlock(pid int32, N int32, f int32, PK *go_threshenc.TPKEPublicKe
     :param tpke_bcast:
     :param tpke_recv:
     :return:
-    """
+    **/
 
     // Broadcast inputs are of the form (tenc(key), enc(key, transactions))
 
     // Threshold encrypt
     // TODO: check that propose_in is the correct length, not too large
-    prop := propose_in()
+    prop := <- propose_in
     b := make([]byte, 32)
     key, err := rand.Read(b)
 //     fmt.Println(n, err, b)
 //     key = os.urandom(32)    // random 256-bit key
-    aesKey := &go_threshenc.AESKey{
-        key: key
-    }
+    aesKey := &go_threshenc.AESKey{key}
     ciphertext := aesKey.aesEncrypt(prop)
     tkey := PK.encrypt(key)
 
-    import pickle
-    to_acs = pickle.dumps((serialize_UVW(*tkey), ciphertext))
-    acs_in(to_acs) // TODO
+    //import pickle TODO
+    //to_acs = pickle.dumps((serialize_UVW(*tkey), ciphertext))
+    acs_in <- to_acs
 
     // Wait for the corresponding ACS to finish
-    vall = acs_out() // TODO
+    vall := <- acs_out 
     if len(vall) != N {
         fmt.Println("len(vall): ", len(vall), " N: ", N, " are not equal.")
         os.Exit(1)
@@ -68,7 +68,7 @@ func honeybadgerBlock(pid int32, N int32, f int32, PK *go_threshenc.TPKEPublicKe
     // print pid, 'Received from acs:', vall
 
     // Broadcast all our decryption shares
-    my_shares = [][]byte
+    my_shares := make([][]byte)
     for _, v in enumerate(vall):
         if v is nil:
             my_shares = append(my_shares, nil)
@@ -99,6 +99,9 @@ func honeybadgerBlock(pid int32, N int32, f int32, PK *go_threshenc.TPKEPublicKe
         fmt.Println("Shares received: ", shares_received, ", should be at least ", f+1)
         os.Exit(1)
     }
+
+    block <- shares_received
+
     // TODO: Accountability
     // If decryption fails at this point, we will have evidence of misbehavior,
     // but then we should wait for more decryption shares and try again
@@ -117,3 +120,4 @@ func honeybadgerBlock(pid int32, N int32, f int32, PK *go_threshenc.TPKEPublicKe
     // print 'Done!', decryptions
 
     return decryptions
+}
