@@ -178,127 +178,141 @@ func merkleVerify(val []byte, roothash []byte, branch [][]byte) bool {
 
 }
 
-/**
- * TODO: May have to edit receive/send arguments to use a struct so it's easier to call from honeybadger since we'll know the exact types to pass in
- */
-func reliablebroadcast(sid int, pid int, N int, f int, leader int, input <-chan string, receive func() (int, []interface{}), send func(int, []interface{})) string {
-
-	K := N - 2*f            // Need this many to reconstruct. (# noqa: E221)
-	EchoThreshold := N - f  // Wait for this many ECHO to send READY. (# noqa: E221)
-	ReadyThreshold := f + 1 // Wait for this many READY to amplify READY. (# noqa: E221)
-	OutputThreshold := 2*f + 1
-
-	broadcast := func(o []interface{}) {
-		for i := 0; i < N; i++ {
-			send(i, o)
-		}
-	}
-
-	var m string
-	if pid == leader {
-		m = <-input
-
-		stripes := encode(K, N, m)
-
-		mt := makeMerkleTree(stripes)
-
-		roothash := mt.MerkleRoot()
-
-		for i := 0; i < N; i++ {
-			branch := getMerkleBranch(stripes[i], mt)
-			toSend := []interface{}{"VAL", roothash, branch, stripes[i]}
-			send(i, toSend)
-		}
-	}
-
-	var fromLeader []byte
-
-	stripes := make(map[string][][]byte)
-
-	echoCounter := make(map[string]int)
-
-	readySent := false
-	echoSenders := mapset.NewSet()
-	readySenders := mapset.NewSet()
-
-	ready := make(map[string]mapset.Set)
-
-	decode_output := func(roothash []byte) string {
-		m := decode(K, N, stripes[string(roothash)])
-		_stripes := encode(K, N, m)
-		_mt := makeMerkleTree(_stripes)
-		_roothash := _mt.MerkleRoot()
-		if bytes.Equal(_roothash, roothash) {
-			return m
-		} else {
-			return "FAILURE"
-		}
-	}
+func reliablebroadcast(sid int, pid int, N int, f int, leader int, input func() string, receive func() (int, []interface{}), send func(int, []interface{}), killChan <-chan string, joinChan chan<- string) string {
 
 	for {
-		sender, msg := receive()
+		select {
 
-		if msg[0] == "VAL" && fromLeader == nil {
+		// listen to killChan for kill signal
+		case <-killChan:
+			return "RBC KILLED"
 
-			roothash := msg[1].([]byte)
-			branch := msg[2].([][]byte)
-			stripe := msg[3].([]byte)
+		// otherwise run
+		default:
 
-			if sender != leader {
-				log.Println("VAL message from other than leader:", sender)
+			// output "finished" to joinChan, can wait for joinChan as a blocker
+			defer func() { joinChan <- "finished" }()
+
+			// default code
+			K := N - 2*f            // Need this many to reconstruct. (# noqa: E221)
+			EchoThreshold := N - f  // Wait for this many ECHO to send READY. (# noqa: E221)
+			ReadyThreshold := f + 1 // Wait for this many READY to amplify READY. (# noqa: E221)
+			OutputThreshold := 2*f + 1
+
+			broadcast := func(o []interface{}) {
+				for i := 0; i < N; i++ {
+					send(i, o)
+				}
 			}
 
-			if !merkleVerify(stripe, roothash, branch) {
-				log.Println("Failed to validate ECHO message!")
-			}
-			// need to add error handling
+			var m string
+			if pid == leader {
+				m = input()
 
-			fromLeader = roothash
-			toBroadcast := []interface{}{"ECHO", roothash, branch, stripe}
-			broadcast(toBroadcast)
+				stripes := encode(K, N, m)
 
-		} else if msg[0] == "ECHO" {
+				mt := makeMerkleTree(stripes)
 
-			roothash := msg[1].([]byte)
-			branch := msg[2].([][]byte)
-			stripe := msg[3].([]byte)
+				roothash := mt.MerkleRoot()
 
-			if !merkleVerify(stripe, roothash, branch) {
-				log.Println("Failed to validate ECHO message!")
-			}
-			// need to add error handling
-
-			// update
-			stripes[string(roothash)][sender] = stripe
-			echoSenders.Add(sender)
-			echoCounter[string(roothash)] += 1
-
-			if echoCounter[string(roothash)] >= EchoThreshold && !readySent {
-				readySent = true
-				toBroadcast := []interface{}{"READY", roothash}
-				broadcast(toBroadcast)
+				for i := 0; i < N; i++ {
+					branch := getMerkleBranch(stripes[i], mt)
+					toSend := []interface{}{"VAL", roothash, branch, stripes[i]}
+					send(i, toSend)
+				}
 			}
 
-			if ready[string(roothash)].Cardinality() >= OutputThreshold && echoCounter[string(roothash)] >= K {
-				return decode_output(roothash)
+			var fromLeader []byte
+
+			stripes := make(map[string][][]byte)
+
+			echoCounter := make(map[string]int)
+
+			readySent := false
+			echoSenders := mapset.NewSet()
+			readySenders := mapset.NewSet()
+
+			ready := make(map[string]mapset.Set)
+
+			decode_output := func(roothash []byte) string {
+				m := decode(K, N, stripes[string(roothash)])
+				_stripes := encode(K, N, m)
+				_mt := makeMerkleTree(_stripes)
+				_roothash := _mt.MerkleRoot()
+				if bytes.Equal(_roothash, roothash) {
+					return m
+				} else {
+					return "FAILURE"
+				}
 			}
 
-		} else if msg[0] == "READY" {
-			roothash := msg[1].([]byte)
-			ready[string(roothash)].Add(sender)
-			readySenders.Add(sender)
+			for {
+				sender, msg := receive()
 
-			if ready[string(roothash)].Cardinality() >= ReadyThreshold && !readySent {
-				readySent = true
-				toBroadcast := []interface{}{"READY", roothash}
-				broadcast(toBroadcast)
+				if msg[0] == "VAL" && fromLeader == nil {
+
+					roothash := msg[1].([]byte)
+					branch := msg[2].([][]byte)
+					stripe := msg[3].([]byte)
+
+					if sender != leader {
+						log.Println("VAL message from other than leader:", sender)
+					}
+
+					if !merkleVerify(stripe, roothash, branch) {
+						log.Println("Failed to validate ECHO message!")
+					}
+					// need to add error handling
+
+					fromLeader = roothash
+					toBroadcast := []interface{}{"ECHO", roothash, branch, stripe}
+					broadcast(toBroadcast)
+
+				} else if msg[0] == "ECHO" {
+
+					roothash := msg[1].([]byte)
+					branch := msg[2].([][]byte)
+					stripe := msg[3].([]byte)
+
+					if !merkleVerify(stripe, roothash, branch) {
+						log.Println("Failed to validate ECHO message!")
+					}
+					// need to add error handling
+
+					// update
+					stripes[string(roothash)][sender] = stripe
+					echoSenders.Add(sender)
+					echoCounter[string(roothash)] += 1
+
+					if echoCounter[string(roothash)] >= EchoThreshold && !readySent {
+						readySent = true
+						toBroadcast := []interface{}{"READY", roothash}
+						broadcast(toBroadcast)
+					}
+
+					if ready[string(roothash)].Cardinality() >= OutputThreshold && echoCounter[string(roothash)] >= K {
+						return decode_output(roothash)
+					}
+
+				} else if msg[0] == "READY" {
+					roothash := msg[1].([]byte)
+					ready[string(roothash)].Add(sender)
+					readySenders.Add(sender)
+
+					if ready[string(roothash)].Cardinality() >= ReadyThreshold && !readySent {
+						readySent = true
+						toBroadcast := []interface{}{"READY", roothash}
+						broadcast(toBroadcast)
+					}
+
+					if ready[string(roothash)].Cardinality() >= OutputThreshold && echoCounter[string(roothash)] >= K {
+						return decode_output(roothash)
+					}
+				}
+
 			}
 
-			if ready[string(roothash)].Cardinality() >= OutputThreshold && echoCounter[string(roothash)] >= K {
-				return decode_output(roothash)
-			}
 		}
-
 	}
 
 }
