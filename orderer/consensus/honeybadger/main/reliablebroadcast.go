@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
+	"fmt"
 	"log"
 	"strings"
 
@@ -178,7 +179,13 @@ func merkleVerify(val []byte, roothash []byte, branch [][]byte) bool {
 
 }
 
-func reliablebroadcast(sid int, pid int, N int, f int, leader int, input func() string, receive func() (int, []interface{}), send func(int, []interface{}), killChan <-chan string, joinChan chan<- string, retChan chan<- string) string {
+// Channel cannot return tuple so I defined a struct for receive/send
+type rb_msg struct {
+	pid   int
+	iface []interface{}
+}
+
+func reliablebroadcast(sid int, pid int, N int, f int, leader int, input <-chan string, receive <-chan rb_msg, send func(int, []interface{}), killChan <-chan string, joinChan chan<- string, retChan chan<- string) string {
 
 	for {
 		select {
@@ -207,7 +214,7 @@ func reliablebroadcast(sid int, pid int, N int, f int, leader int, input func() 
 
 			var m string
 			if pid == leader {
-				m = input()
+				m = <-input
 
 				stripes := encode(K, N, m)
 
@@ -247,7 +254,9 @@ func reliablebroadcast(sid int, pid int, N int, f int, leader int, input func() 
 			}
 
 			for {
-				sender, msg := receive()
+				rb_msg_received := <-receive
+				msg := rb_msg_received.iface
+				sender := rb_msg_received.pid
 
 				if msg[0] == "VAL" && fromLeader == nil {
 
@@ -317,14 +326,13 @@ func reliablebroadcast(sid int, pid int, N int, f int, leader int, input func() 
 
 }
 
+/*
 func main() {
 
 	// Erasure Code Testing
-	/*
+
 		codeword := encode(5, 20, "helloworldys")
-
 		fmt.Println(codeword)
-
 		for i := 0; i < 15; i++ {
 			codeword[i] = nil
 		}
@@ -332,27 +340,26 @@ func main() {
 		recoveredString := decode(5, 20, codeword)
 		fmt.Println(recoveredString)
 		fmt.Println(len(recoveredString))
-	*/
+*/
 
-	// Hash Testing
-	/*
-		someHash := hash([]byte("Hello World"))
-		fmt.Println(someHash)
+// Hash Testing
+/*
+	someHash := hash([]byte("Hello World"))
+	fmt.Println(someHash)
+	anotherHash := hash("Hello World")
+	fmt.Println(anotherHash)
+*/
 
-		anotherHash := hash("Hello World")
-		fmt.Println(anotherHash)
-	*/
+// Ceil Testing
+/*
+	someFloat := 3.14
+	fmt.Println(ceil(someFloat))
+*/
 
-	// Ceil Testing
-	/*
-		someFloat := 3.14
-		fmt.Println(ceil(someFloat))
-	*/
-
-	// Merkle Tree Testing
-	/*
+// Merkle Tree Testing
+/*
 		codeword := encode(5, 20, "helloworldys")
 		fmt.Println(merkleTree(codeword)[1])
-	*/
 
-}
+
+}*/
