@@ -28,23 +28,27 @@ func shared_coin(sid int, pid int, N int, f int, meta tcrsa.KeyMeta, keyShare tc
 
 	// For now, don't need to verify each share. There is no easy equivalent method in tcrsa at the moment
 
-	// After receiving signatures, 
+    // Calculate signature to give to others
+    sigShare = sign(keyShare, docPK, meta)
+
+	// After receiving signatures from others
 
 	meta.L = f + 1 // Need f +1 keyshares to verify signature
-	shares := make(KeyShareList, meta.L)
+	shares := make(tcrsa.SigShareList, meta.L)
 	for i = 0: i < f + 1; i++ {
-		shares[i] = // Get keyShares for each f+1 nodes
+		sigShares[i] = sigShare
 	}
 
+
 	var sig string
-	sig = combine(f + 1, docPK, shares, meta)//  sig = PK.combine_shares(sigs) assert PK.verify_signature(sig, h)
+	sig = combine_signatures(docPK, sigShares, meta)//  sig = PK.combine_shares(sigs) assert PK.verify_signature(sig, h)
 	verify(meta, docHash, sig) // This will trigger a panic if verification fails
 
 	bit := hash(signature)[0]%2 // bit = hash(serialize(sig))[0] % 2
 
 
 	// In getCoin()'s initialization
-	sigShare, err := keyShare.Sign(docPK, hcrypto.SHA256, meta) // SK.sign(h)
+	sigShare = sign(keyShare, docPK, meta) // SK.sign(h)
 	sigShare.Xi // This is signature share value. Can be combined with f other signatures to verify a msg
 	sigShare.C // Verification value of signature share
 
