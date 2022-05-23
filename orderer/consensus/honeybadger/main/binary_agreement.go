@@ -87,11 +87,11 @@ func has_received_aux_already(msg message, msgs_received []message) bool {
 pid : process id
 N : total nodes
 f : faulty nodes
-coin : This is a function that takes a round as input and returns the outpt of commoncoin of round
+coin : func(int) int Takes in round number and outputs coin result.
 input: Channel containing input to binaryagreement
 decide: Channel to put decision of binaryagreement on input
-broadcast: Func to call to broadcast message to all nodes. broadcast(msg)
-receive: Channel to receive binaryagreement messages from other nodes.
+broadcast: func(string) Takes in a string to broadcast
+receive: Channel to receive binaryagreement string messages from other nodes.
 */
 func binaryagreement(
 		pid int,
