@@ -23,31 +23,36 @@ func shared_coin(sid string, pid int, N int, f int, meta tcrsa.KeyMeta, keyShare
 	}
 
 	// Need to get r from receive
-	docHash, docPK := threshsig.HashMessage(sid+strconv.Itoa(r), meta) // h = PK.hash_message(str((sid, r)))
+	docHash, docPK := threshsig.HashMessage(sid+strconv.Itoa(r), &meta) // h = PK.hash_message(str((sid, r)))
 
-	// For now, don't need to verify each share. There is no easy equivalent method in tcrsa at the moment
+	/**
 
-	// Calculate signature to give to others
-	sigShare := sign(keyShare, docPK, meta)
+		// For now, don't need to verify each share. There is no easy equivalent method in tcrsa at the moment
 
-	// After receiving signatures from others
+		// Calculate signature to give to others
+		sigShare := threshsig.Sign(keyShare, docPK, meta)
 
-	meta.L = uint16(f + 1) // Need f +1 keyshares to verify signature
-	shares := make(tcrsa.SigShareList, meta.L)
-	for i = 0; i < f+1; i++ {
-		sigShares[i] = sigShare
-	}
+		// After receiving signatures from others
 
-	var sig string
-	sig = combine_signatures(docPK, sigShares, meta) //  sig = PK.combine_shares(sigs) assert PK.verify_signature(sig, h)
-	verify(meta, docHash, sig)                       // This will trigger a panic if verification fails
+		meta.L = uint16(f + 1) // Need f +1 keyshares to verify signature
+		shares := make(tcrsa.SigShareList, meta.L)
+		for i := 0; i < f+1; i++ {
+			sigShares[i] = sigShare
+		}
 
-	bit := hash(signature)[0] % 2 // bit = hash(serialize(sig))[0] % 2
+		var sig string
+		sig = threshSig.CombineSignatures(docPK, sigShares, meta) //  sig = PK.combine_shares(sigs) assert PK.verify_signature(sig, h)
+		threshsig.Verify(meta, docHash, sig)                      // This will trigger a panic if verification fails
 
-	// In getCoin()'s initialization
-	sigShare = sign(keyShare, docPK, meta) // SK.sign(h)
-	sigShare.Xi                            // This is signature share value. Can be combined with f other signatures to verify a msg
-	sigShare.C                             // Verification value of signature share
+		bit := hash(signature)[0] % 2 // bit = hash(serialize(sig))[0] % 2
+
+		// In getCoin()'s initialization
+		sigShare = threshsig.Sign(keyShare, docPK, meta) // SK.sign(h)
+		sigShare.Xi                                      // This is signature share value. Can be combined with f other signatures to verify a msg
+		sigShare.C                                       // Verification value of signature share
+	    **/
+
+	return 0
 
 }
 
