@@ -8,6 +8,10 @@ require github.com/vishalmohanty/go_threshenc v0.0.0
 
 replace github.com/vishalmohanty/go_threshenc v0.0.0 => ../crypto/threshenc/go/go_threshenc
 
+require threshsig v0.0.0
+
+replace threshsig v0.0.0 => ../crypto/threshsig
+
 require (
 	github.com/cbergoon/merkletree v0.2.0
 	github.com/deckarep/golang-set v1.8.0

@@ -1,3 +1,0 @@
-[submodule "orderer/consensus/honeybadger/crypto/threshsig/tcrsa"]
-	path = orderer/consensus/honeybadger/crypto/threshsig/tcrsa
-	url = https://github.com/niclabs/tcrsa.git

@@ -1,15 +1,13 @@
 package main
 
 import (
-	"crypto"
-	"crypto/rsa"
 	"crypto/sha256"
-	"fmt"
 	tcrsa "github.com/niclabs/tcrsa"
 	"strconv"
+	"threshsig"
 )
 
-func hash(msg string) []byte{
+func hash(msg string) []byte {
 	h := sha256.New()
 	data := []byte(msg)
 	h.Write(data)
@@ -25,7 +23,7 @@ func shared_coin(sid string, pid int, N int, f int, meta tcrsa.KeyMeta, keyShare
 	}
 
 	// Need to get r from receive
-	docHash, docPK := hash_message(sid + strconv.Itoa(r), meta) // h = PK.hash_message(str((sid, r)))
+	docHash, docPK := threshsig.HashMessage(sid+strconv.Itoa(r), meta) // h = PK.hash_message(str((sid, r)))
 
 	// For now, don't need to verify each share. There is no easy equivalent method in tcrsa at the moment
 

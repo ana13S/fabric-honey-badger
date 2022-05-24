@@ -1,4 +1,4 @@
-package crypto
+package threshsig
 
 import (
 	"crypto"
@@ -14,7 +14,7 @@ var k uint16
 const hashType = crypto.SHA256
 
 // n is number of parties, k = id
-func dealer(N int, K int, size int) (shares tcrsa.KeyShareList, meta *tcrsa.KeyMeta) {
+func Dealer(N int, K int, size int) (shares tcrsa.KeyShareList, meta *tcrsa.KeyMeta) {
 	n := uint16(N)
 	k = uint16(K)
 
@@ -27,7 +27,7 @@ func dealer(N int, K int, size int) (shares tcrsa.KeyShareList, meta *tcrsa.KeyM
 	return keyShares, keyMeta
 }
 
-func hash_message(msg string, keyMeta *tcrsa.KeyMeta) ([]byte, []byte) {
+func HashMessage(msg string, keyMeta *tcrsa.KeyMeta) ([]byte, []byte) {
 	docHash := sha256.Sum256([]byte(msg))
 	docPKCS1, err := tcrsa.PrepareDocumentHash(keyMeta.PublicKey.Size(), crypto.SHA256, docHash[:])
 	if err != nil {
@@ -36,7 +36,7 @@ func hash_message(msg string, keyMeta *tcrsa.KeyMeta) ([]byte, []byte) {
 	return docHash[:], docPKCS1
 }
 
-func sign(keyShare tcrsa.KeyShare, docPK []byte, meta *tcrsa.KeyMeta) tcrsa.SigShare {
+func Sign(keyShare tcrsa.KeyShare, docPK []byte, meta *tcrsa.KeyMeta) tcrsa.SigShare {
 	sigShare, err := keyShare.Sign(docPK, hashType, meta)
 	if err != nil {
 		panic(fmt.Sprintf("%v", err))
@@ -44,7 +44,7 @@ func sign(keyShare tcrsa.KeyShare, docPK []byte, meta *tcrsa.KeyMeta) tcrsa.SigS
 	return *sigShare
 }
 
-func group_sign(K int, docPK []byte, keyShares tcrsa.KeyShareList, meta *tcrsa.KeyMeta) tcrsa.SigShareList {
+func GroupSign(K int, docPK []byte, keyShares tcrsa.KeyShareList, meta *tcrsa.KeyMeta) tcrsa.SigShareList {
 	sigShares := make(tcrsa.SigShareList, k)
 	var i uint16
 	var err error
@@ -62,7 +62,7 @@ func group_sign(K int, docPK []byte, keyShares tcrsa.KeyShareList, meta *tcrsa.K
 	return sigShares
 }
 
-func combine_signatures(docPK []byte, sigShares tcrsa.SigShareList, meta *tcrsa.KeyMeta) tcrsa.Signature {
+func CombineSignatures(docPK []byte, sigShares tcrsa.SigShareList, meta *tcrsa.KeyMeta) tcrsa.Signature {
 	// Combine to create a real signature.
 	signature, err := sigShares.Join(docPK, meta)
 	if err != nil {
@@ -72,7 +72,7 @@ func combine_signatures(docPK []byte, sigShares tcrsa.SigShareList, meta *tcrsa.
 	return signature
 }
 
-func verify(meta *tcrsa.KeyMeta, docHash []byte, signature tcrsa.Signature) {
+func Verify(meta *tcrsa.KeyMeta, docHash []byte, signature tcrsa.Signature) {
 	// Check signature
 	if err := rsa.VerifyPKCS1v15(meta.PublicKey, crypto.SHA256, docHash[:], signature); err != nil {
 		panic(fmt.Sprintf("%v", err))
