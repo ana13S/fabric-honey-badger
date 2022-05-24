@@ -94,14 +94,23 @@ broadcast: func(string) Takes in a string to broadcast
 receive: Channel to receive binaryagreement string messages from other nodes.
 */
 func binaryagreement(
+	sid string,
 	pid int,
 	N int,
 	f int,
-	coin func(int) int,
 	input chan int,
 	decide chan int,
 	broadcast func(string),
-	receive chan string) {
+	receive chan string,
+	coin_sid string,
+	coin_pid int,
+	coin_N int,
+	coin_f int,
+	coin_meta tcrsa.KeyMeta,
+	coin_keyShare tcrsa.KeyShare,
+	coin_broadcast func(int),
+	coin_receive chan string,
+	) {
 	r := 0
 	est := <-input
 	msgs_received := make([]message, 0)
@@ -200,7 +209,16 @@ func binaryagreement(
 			}
 			fmt.Println("Received at least N-f messsages, whose value is a subset of bin_values.")
 			fmt.Println("Calling get coin.")
-			coin_val := coin(r)
+			coin_val := shared_coin(
+				coin_sid,
+				coin_pid,
+				coin_N,
+				coin_f,
+				coin_meta,
+				coin_keyShare,
+				coin_broadcast,
+				coin_receive,
+				r)
 			if (b_value == 0 && has_0_int*count_0 >= N-f) || (b_value == 1 && has_1_int*count_1 >= N-f) {
 				fmt.Println("vals = {b}")
 				est = b_value

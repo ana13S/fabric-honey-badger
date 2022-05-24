@@ -123,21 +123,19 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string) {
 	rbc_outputs := make([](chan string), hb.N)
 
 	my_rbc_input := make(chan string)
-	get_coin_channel := make(chan (func(int) int))
 
 	setup := func(j int) {
 		coin_bcast := func(o int) {
 			broadcast("ACS_COIN" + strconv.Itoa(j) + strconv.Itoa(o))
 		}
 		coin_recvs[j] = make(chan string)
-		coin := make(chan int)
-		go shared_coin(hb.sid+"COIN"+strconv.Itoa(j), hb.pid, hb.N, hb.f, hb.sPK, hb.sSK, coin_bcast, coin_recvs[j], get_coin_channel)
 
 		aba_bcast := func(o int) {
 			broadcast("ACS_ABA" + strconv.Itoa(j) + strconv.Itoa(o))
 		}
 		aba_recvs[j] = make(chan string)
-		go binaryagreement(hb.sid+"ABA"+strconv.Itoa(j), hb.pid, hb.N, hb.f, coin, aba_inputs[j], aba_outputs[j], broadcast, aba_recvs[j])
+		go binaryagreement(hb.sid+"ABA"+strconv.Itoa(j), hb.pid, hb.N, hb.f, aba_inputs[j], aba_outputs[j], broadcast, aba_recvs[j],
+			               hb.sid+"COIN"+strconv.Itoa(j), hb.pid, hb.N, hb.f, hb.sPK, hb.sSK, coin_bcast, coin_recvs[j])
 
 		rbc_send := func(k int, o int) {
 			sendMessages(all_ports[k], "ACS_RBC"+strconv.Itoa(j)+strconv.Itoa(o))

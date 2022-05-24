@@ -5,35 +5,36 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"fmt"
-
 	tcrsa "github.com/niclabs/tcrsa"
+	"strconv"
 )
 
-func hash(msg string) {
+func hash(msg string) []byte{
 	h := sha256.New()
-	h.Write(str.encode(msg))
+	data := []byte(msg)
+	h.Write(data)
 	return h.Sum(nil)
 }
 
 // keyMeta holds public key
 // keyShare holds values for specific node(including something similar to secret key)
 func shared_coin(sid string, pid int, N int, f int, meta tcrsa.KeyMeta, keyShare tcrsa.KeyShare,
-	broadcast func(int), receive chan string, getCoinFunc <-chan (func(int) int)) {
-	if meta.L != N || meta.L != f+1 { // assert PK.l == N   assert PK.k == f+1
+	broadcast func(int), receive chan string, r int) int {
+	if int(meta.L) != N || int(meta.L) != f+1 { // assert PK.l == N   assert PK.k == f+1
 		panic("F and N not set correctly")
 	}
 
 	// Need to get r from receive
-	docHash, docPK := hash_message(sid+r, meta) // h = PK.hash_message(str((sid, r)))
+	docHash, docPK := hash_message(sid + strconv.Itoa(r), meta) // h = PK.hash_message(str((sid, r)))
 
 	// For now, don't need to verify each share. There is no easy equivalent method in tcrsa at the moment
 
 	// Calculate signature to give to others
-	sigShare = sign(keyShare, docPK, meta)
+	sigShare := sign(keyShare, docPK, meta)
 
 	// After receiving signatures from others
 
-	meta.L = f + 1 // Need f +1 keyshares to verify signature
+	meta.L = uint16(f + 1) // Need f +1 keyshares to verify signature
 	shares := make(tcrsa.SigShareList, meta.L)
 	for i = 0; i < f+1; i++ {
 		sigShares[i] = sigShare
