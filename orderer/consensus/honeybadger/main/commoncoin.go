@@ -10,47 +10,45 @@ import (
 )
 
 func hash(msg string) {
-	h:= sha256.New()
+	h := sha256.New()
 	h.Write(str.encode(msg))
 	return h.Sum(nil)
 }
 
-// keyMeta holds public key 
+// keyMeta holds public key
 // keyShare holds values for specific node(including something similar to secret key)
-func shared_coin(sid int, pid int, N int, f int, meta tcrsa.KeyMeta, keyShare tcrsa.KeyShare, 
+func shared_coin(sid string, pid int, N int, f int, meta tcrsa.KeyMeta, keyShare tcrsa.KeyShare,
 	broadcast func(int), receive chan string, getCoinFunc <-chan (func(int) int)) {
-	if meta.L != N || meta.L != f + 1: // assert PK.l == N   assert PK.k == f+1 
+	if meta.L != N || meta.L != f+1 { // assert PK.l == N   assert PK.k == f+1
 		panic("F and N not set correctly")
-	
+	}
 
 	// Need to get r from receive
-	docHash, docPK := hash_message(sid + r, meta) // h = PK.hash_message(str((sid, r)))
+	docHash, docPK := hash_message(sid+r, meta) // h = PK.hash_message(str((sid, r)))
 
 	// For now, don't need to verify each share. There is no easy equivalent method in tcrsa at the moment
 
-    // Calculate signature to give to others
-    sigShare = sign(keyShare, docPK, meta)
+	// Calculate signature to give to others
+	sigShare = sign(keyShare, docPK, meta)
 
 	// After receiving signatures from others
 
 	meta.L = f + 1 // Need f +1 keyshares to verify signature
 	shares := make(tcrsa.SigShareList, meta.L)
-	for i = 0: i < f + 1; i++ {
+	for i = 0; i < f+1; i++ {
 		sigShares[i] = sigShare
 	}
 
-
 	var sig string
-	sig = combine_signatures(docPK, sigShares, meta)//  sig = PK.combine_shares(sigs) assert PK.verify_signature(sig, h)
-	verify(meta, docHash, sig) // This will trigger a panic if verification fails
+	sig = combine_signatures(docPK, sigShares, meta) //  sig = PK.combine_shares(sigs) assert PK.verify_signature(sig, h)
+	verify(meta, docHash, sig)                       // This will trigger a panic if verification fails
 
-	bit := hash(signature)[0]%2 // bit = hash(serialize(sig))[0] % 2
-
+	bit := hash(signature)[0] % 2 // bit = hash(serialize(sig))[0] % 2
 
 	// In getCoin()'s initialization
 	sigShare = sign(keyShare, docPK, meta) // SK.sign(h)
-	sigShare.Xi // This is signature share value. Can be combined with f other signatures to verify a msg
-	sigShare.C // Verification value of signature share
+	sigShare.Xi                            // This is signature share value. Can be combined with f other signatures to verify a msg
+	sigShare.C                             // Verification value of signature share
 
 }
 
@@ -135,4 +133,4 @@ func shared_coin(sid int, pid int, N int, f int, meta tcrsa.KeyMeta, keyShare tc
         return outputQueue[round].get()
 
     return getCoin
-**/ 
+**/

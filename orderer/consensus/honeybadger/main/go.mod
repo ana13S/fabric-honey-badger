@@ -12,6 +12,7 @@ require (
 	github.com/cbergoon/merkletree v0.2.0
 	github.com/deckarep/golang-set v1.8.0
 	github.com/klauspost/reedsolomon v1.9.16
+	github.com/niclabs/tcrsa v0.0.5
 	github.com/pebbe/zmq4 v1.2.8
 	github.com/stretchr/testify v1.7.1
 	github.com/vishalmohanty/encryption v0.0.0
