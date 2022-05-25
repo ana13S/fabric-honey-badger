@@ -5,6 +5,8 @@ import (
 	tcrsa "github.com/niclabs/tcrsa"
 	"strconv"
 	"threshsig"
+	"encoding/json"
+	"fmt"
 )
 
 func hash(msg string) []byte {
@@ -14,10 +16,21 @@ func hash(msg string) []byte {
 	return h.Sum(nil)
 }
 
+func sig_msg_stringify(msg tcrsa.SigShare) string {
+	marsh, _ := json.Marshal(msg)
+	return string(marsh)
+}
+
+func sig_msg_parse(msg string) tcrsa.SigShare {
+	var new_sig_msg tcrsa.SigShare
+	json.Unmarshal([]byte(msg), &new_sig_msg)
+	return new_sig_msg
+}
+
 // keyMeta holds public key
 // keyShare holds values for specific node(including something similar to secret key)
 func shared_coin(sid string, pid int, N int, f int, meta tcrsa.KeyMeta, keyShare tcrsa.KeyShare,
-	broadcast func(int), receive chan string, r int) int {
+	broadcast func(string), receive chan string, r int) int {
 	if int(meta.L) != N || int(meta.L) != f+1 { // assert PK.l == N   assert PK.k == f+1
 		panic("F and N not set correctly")
 	}
@@ -25,34 +38,25 @@ func shared_coin(sid string, pid int, N int, f int, meta tcrsa.KeyMeta, keyShare
 	// Need to get r from receive
 	docHash, docPK := threshsig.HashMessage(sid+strconv.Itoa(r), &meta) // h = PK.hash_message(str((sid, r)))
 
-	/**
+	// Calculate signature and broadcast to others
+	sigShare := threshsig.Sign(keyShare, docPK, &meta)
+	broadcast(sig_msg_stringify(sigShare))
 
-		// For now, don't need to verify each share. There is no easy equivalent method in tcrsa at the moment
+	// Wait for f+1 keyshares
+	meta.L = uint16(f + 1) // Need f +1 keyshares to verify signature
+	shares := make([]tcrsa.SigShare, meta.L)
+	shareList := make(tcrsa.SigShareList, meta.L)
+	for i := 0; i < f+1; i++ {
+		msg := <-receive
+		shares[i] = sig_msg_parse(msg)
+		shareList[i] = &shares[i]
+	}
 
-		// Calculate signature to give to others
-		sigShare := threshsig.Sign(keyShare, docPK, meta)
-
-		// After receiving signatures from others
-
-		meta.L = uint16(f + 1) // Need f +1 keyshares to verify signature
-		shares := make(tcrsa.SigShareList, meta.L)
-		for i := 0; i < f+1; i++ {
-			sigShares[i] = sigShare
-		}
-
-		var sig string
-		sig = threshSig.CombineSignatures(docPK, sigShares, meta) //  sig = PK.combine_shares(sigs) assert PK.verify_signature(sig, h)
-		threshsig.Verify(meta, docHash, sig)                      // This will trigger a panic if verification fails
-
-		bit := hash(signature)[0] % 2 // bit = hash(serialize(sig))[0] % 2
-
-		// In getCoin()'s initialization
-		sigShare = threshsig.Sign(keyShare, docPK, meta) // SK.sign(h)
-		sigShare.Xi                                      // This is signature share value. Can be combined with f other signatures to verify a msg
-		sigShare.C                                       // Verification value of signature share
-	    **/
-
-	return 0
+	// After receiving signatures from others
+	sig := threshsig.CombineSignatures(docPK, shareList, &meta)
+	threshsig.Verify(&meta, docHash, sig)
+	bit := int(sig[0]) % 2
+	return bit
 
 }
 

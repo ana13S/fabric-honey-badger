@@ -108,7 +108,7 @@ func binaryagreement(
 	coin_f int,
 	coin_meta tcrsa.KeyMeta,
 	coin_keyShare tcrsa.KeyShare,
-	coin_broadcast func(int),
+	coin_broadcast func(string),
 	coin_receive chan string,
 	) {
 	r := 0
