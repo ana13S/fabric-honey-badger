@@ -12,11 +12,6 @@ import (
 	"time"
 )
 
-const ACS_COIN = "ACS_COIN"
-const ACS_RBC = "ACS_RBC"
-const ACS_ABA = "ACS_ABA"
-const TPKE = "TPKE"
-
 var all_ports = []string{"5000", "5010", "5020", "5030"}
 
 var zctx *zmq.Context
