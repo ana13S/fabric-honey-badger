@@ -28,7 +28,7 @@ import (
    :param tpke_recv:
    :return: slice of strings (txns) committed in this round
 */
-func honeybadgerBlock(pid int, N int, f int, propose_in <-chan string, acs_in <-chan []string, acs_out <-chan []string, hb_block chan<- []string) {
+func honeybadgerBlock(pid int, N int, f int, propose_in <-chan string, acs_in chan<- string, acs_out []chan string, hb_block chan<- []string) {
 
 	// Broadcast inputs are of the form (tenc(key), enc(key, transactions))
 
@@ -37,14 +37,17 @@ func honeybadgerBlock(pid int, N int, f int, propose_in <-chan string, acs_in <-
 	acs_in <- prop
 
 	// Wait for the corresponding ACS to finish
-	vall := <-acs_out
+	var vall = make([]string, N)
+	for i, val := range acs_out {
+		vall[i] = <-val
+	}
 	if len(vall) != N {
 		fmt.Println("len(vall): ", len(vall), " N: ", N, " are not equal.")
 		os.Exit(1)
 	}
 	var nonNil = 0
 	for _, val := range vall { // This many must succeed
-		if val != nil {
+		if val != "" {
 			nonNil = nonNil + 1
 		}
 	}

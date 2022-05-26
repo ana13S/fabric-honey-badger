@@ -200,9 +200,16 @@ type Rb_msg struct {
 	Stripe   []byte
 }
 
-func rb_msg_stringify(msg Rb_msg) string {
+func rb_msg_stringify(pid int, msg Rb_msg) hbMessage {
 	marsh, _ := json.Marshal(msg)
-	return string(marsh)
+	message := string(marsh)
+	msgType := "RBC"
+	sender := pid
+	return hbMessage{
+		msgType: msgType,
+		sender:  sender,
+		msg:     message,
+	}
 }
 
 func rb_msg_parse(msg string) Rb_msg {
@@ -219,7 +226,7 @@ func reliablebroadcast(
 	leader int,
 	input <-chan string,
 	receive <-chan string,
-	send func(i int, msg string),
+	// send func(i int, msg string),
 	retChan chan<- string) string {
 
 	// default code
@@ -228,11 +235,11 @@ func reliablebroadcast(
 	ReadyThreshold := f + 1 // Wait for this many READY to amplify READY. (# noqa: E221)
 	OutputThreshold := 2*f + 1
 
-	broadcast := func(msg string) {
-		for i := 0; i < N; i++ {
-			send(i, msg)
-		}
-	}
+	// broadcast := func(msg string) {
+	// 	for i := 0; i < N; i++ {
+	// 		send(i, msg)
+	// 	}
+	// }
 
 	var m string
 	if pid == leader {
@@ -250,13 +257,15 @@ func reliablebroadcast(
 		for i := 0; i < N; i++ {
 			branch := getMerkleBranch(stripes[i], mt)
 
-			toSend := rb_msg_stringify(Rb_msg{
-				Pid:      i,
-				Msg_type: "VAL",
-				Roothash: roothash,
-				Branch:   branch,
-				Stripe:   stripes[i],
-			})
+			toSend := rb_msg_stringify(
+				pid,
+				Rb_msg{
+					Pid:      i,
+					Msg_type: "VAL",
+					Roothash: roothash,
+					Branch:   branch,
+					Stripe:   stripes[i],
+				})
 
 			send(i, toSend)
 		}
@@ -312,13 +321,15 @@ func reliablebroadcast(
 
 			fromLeader = roothash
 
-			toBroadcast := rb_msg_stringify(Rb_msg{
-				Pid:      999,
-				Msg_type: "ECHO",
-				Roothash: roothash,
-				Branch:   branch,
-				Stripe:   stripe,
-			})
+			toBroadcast := rb_msg_stringify(
+				pid,
+				Rb_msg{
+					Pid:      999,
+					Msg_type: "ECHO",
+					Roothash: roothash,
+					Branch:   branch,
+					Stripe:   stripe,
+				})
 			broadcast(toBroadcast)
 
 		} else if recvd_msg.Msg_type == "ECHO" {
@@ -339,13 +350,15 @@ func reliablebroadcast(
 
 			if echoCounter[string(roothash)] >= EchoThreshold && !readySent {
 				readySent = true
-				toBroadcast := rb_msg_stringify(Rb_msg{
-					Pid:      999,
-					Msg_type: "READY",
-					Roothash: roothash,
-					Branch:   nil,
-					Stripe:   nil,
-				})
+				toBroadcast := rb_msg_stringify(
+					pid,
+					Rb_msg{
+						Pid:      999,
+						Msg_type: "READY",
+						Roothash: roothash,
+						Branch:   nil,
+						Stripe:   nil,
+					})
 				broadcast(toBroadcast)
 			}
 
@@ -360,13 +373,15 @@ func reliablebroadcast(
 
 			if ready[string(roothash)].Cardinality() >= ReadyThreshold && !readySent {
 				readySent = true
-				toBroadcast := rb_msg_stringify(Rb_msg{
-					Pid:      999,
-					Msg_type: "READY",
-					Roothash: roothash,
-					Branch:   nil,
-					Stripe:   nil,
-				})
+				toBroadcast := rb_msg_stringify(
+					pid,
+					Rb_msg{
+						Pid:      999,
+						Msg_type: "READY",
+						Roothash: roothash,
+						Branch:   nil,
+						Stripe:   nil,
+					})
 				broadcast(toBroadcast)
 			}
 

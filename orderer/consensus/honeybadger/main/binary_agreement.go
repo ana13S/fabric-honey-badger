@@ -1,8 +1,11 @@
 package main
 
-import "fmt"
-import "strconv"
-import "strings"
+import (
+	"fmt"
+	tcrsa "github.com/niclabs/tcrsa"
+	"strconv"
+	"strings"
+)
 
 // place-holder function that is cross-process communication.
 // func broadcast(prefix string, round int, value int, sender int) {
@@ -41,8 +44,15 @@ func parse_message(message_string string) message {
 }
 
 // parse message object to message_string
-func construct_message_string(m message) string {
-	return m.prefix + "_" + strconv.Itoa(m.round) + "_" + strconv.Itoa(m.value) + "_" + strconv.Itoa(m.sender) + "_" + strconv.Itoa(m.receiver)
+func construct_aba_message(pid int, m message) hbMessage {
+	msg := m.prefix + "_" + strconv.Itoa(m.round) + "_" + strconv.Itoa(m.value) + "_" + strconv.Itoa(m.sender) + "_" + strconv.Itoa(m.receiver)
+	msgType := "ABA"
+	sender := pid
+	return hbMessage{
+		msgType: msgType,
+		sender:  sender,
+		msg:     msg,
+	}
 }
 
 func construct_message(prefix string, round int, value int, sender int, receiver int) message {
@@ -100,7 +110,7 @@ func binaryagreement(
 	f int,
 	input chan int,
 	decide chan int,
-	broadcast func(string),
+	// broadcast func(string),
 	receive chan string,
 	coin_sid string,
 	coin_pid int,
@@ -108,16 +118,16 @@ func binaryagreement(
 	coin_f int,
 	coin_meta tcrsa.KeyMeta,
 	coin_keyShare tcrsa.KeyShare,
-	coin_broadcast func(string),
+	// coin_broadcast func(string),
 	coin_receive chan string,
-	) {
+) {
 	r := 0
 	est := <-input
 	msgs_received := make([]message, 0)
 	for {
 		fmt.Println("In round " + strconv.Itoa(r))
 
-		broadcast(construct_message_string(construct_message("bval", r, est, pid, -1)))
+		broadcast(construct_aba_message(pid, construct_message("bval", r, est, pid, -1)))
 		// Count your own message/vote too.
 		msgs_received = append(msgs_received, message{prefix: "bval", round: r, value: est, sender: pid, receiver: pid})
 
@@ -149,7 +159,7 @@ func binaryagreement(
 				count := get_count(msgs_received, r, msg_object.value, "bval")
 				if count >= f+1 {
 					fmt.Println("Has received more than f+1 bval messages with value " + strconv.Itoa(msg_object.value) + " at round " + strconv.Itoa(r))
-					broadcast(construct_message_string(construct_message("bval", r, msg_object.value, pid, -1)))
+					broadcast(construct_aba_message(pid, construct_message("bval", r, msg_object.value, pid, -1)))
 					// Count your own message/vote too.
 					msgs_received = append(msgs_received, message{prefix: "bval", round: r, value: msg_object.value, sender: pid, receiver: pid})
 				}
@@ -175,7 +185,7 @@ func binaryagreement(
 			if b_value == -1 {
 				b_value = bin_values[0]
 				fmt.Println("b set to be " + strconv.Itoa(b_value))
-				broadcast(construct_message_string(construct_message("aux", r, b_value, pid, -1)))
+				broadcast(construct_aba_message(pid, construct_message("aux", r, b_value, pid, -1)))
 				// Count your own message/vote too.
 				msgs_received = append(msgs_received, message{prefix: "aux", round: r, value: b_value, sender: pid, receiver: pid})
 			}
@@ -216,7 +226,7 @@ func binaryagreement(
 				coin_f,
 				coin_meta,
 				coin_keyShare,
-				coin_broadcast,
+				// coin_broadcast,
 				coin_receive,
 				r)
 			if (b_value == 0 && has_0_int*count_0 >= N-f) || (b_value == 1 && has_1_int*count_1 >= N-f) {

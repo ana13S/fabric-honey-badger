@@ -1,15 +1,15 @@
 package main
 
 import (
+	"strconv"
 	"sync"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
+	// "testing"
+	// "github.com/stretchr/testify/assert"
 )
 
 // We are supporting only one transaction at a time
 // That's why rbc_out[i] returns one string (represents a transaction)
-func commonsubset(pid int, N int, f int, rbc_out []<-chan string, aba_in []chan<- int, aba_out []<-chan int, rbc_values []chan string, t *testing.T) {
+func commonsubset(pid int, N int, f int, rbc_out []chan string, aba_in []chan int, aba_out []chan int, rbc_values []chan string) {
 
 	// setup collector slices
 	aba_inputted := make([]bool, N)
@@ -99,7 +99,9 @@ func commonsubset(pid int, N int, f int, rbc_out []<-chan string, aba_in []chan<
 	for i := 0; i < len(aba_values); i++ {
 		arrSum = arrSum + aba_values[i]
 	}
-	assert.GreaterOrEqual(t, arrSum, N-f)
+	if arrSum < N-f {
+		panic("Expected arrSum " + strconv.Itoa(arrSum) + " to be greater or equal to " + strconv.Itoa(N-f))
+	}
 
 	// wait for the corresponding broadcasts
 	for j := 0; j < N; j++ {
@@ -111,7 +113,9 @@ func commonsubset(pid int, N int, f int, rbc_out []<-chan string, aba_in []chan<
 			// nonetype error handling
 			// Check value in rbc
 			val := <-rbc_values[j]
-			assert.NotEqual(t, val, "")
+			if val == "" {
+				panic("Expected val to not be empty")
+			}
 		} else {
 
 			recv_rbc_killChans[j] <- "kill"

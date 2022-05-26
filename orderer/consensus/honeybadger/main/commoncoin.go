@@ -2,11 +2,11 @@ package main
 
 import (
 	"crypto/sha256"
+	"encoding/json"
+	// "fmt"
 	tcrsa "github.com/niclabs/tcrsa"
 	"strconv"
 	"threshsig"
-	"encoding/json"
-	"fmt"
 )
 
 func hash(msg string) []byte {
@@ -16,9 +16,16 @@ func hash(msg string) []byte {
 	return h.Sum(nil)
 }
 
-func sig_msg_stringify(msg tcrsa.SigShare) string {
+func sig_msg_stringify(pid int, msg tcrsa.SigShare) hbMessage {
 	marsh, _ := json.Marshal(msg)
-	return string(marsh)
+	message := string(marsh)
+	msgType := "COIN"
+	sender := pid
+	return hbMessage{
+		msgType: msgType,
+		sender:  sender,
+		msg:     message,
+	}
 }
 
 func sig_msg_parse(msg string) tcrsa.SigShare {
@@ -30,7 +37,7 @@ func sig_msg_parse(msg string) tcrsa.SigShare {
 // keyMeta holds public key
 // keyShare holds values for specific node(including something similar to secret key)
 func shared_coin(sid string, pid int, N int, f int, meta tcrsa.KeyMeta, keyShare tcrsa.KeyShare,
-	broadcast func(string), receive chan string, r int) int {
+	receive chan string, r int) int {
 	if int(meta.L) != N || int(meta.L) != f+1 { // assert PK.l == N   assert PK.k == f+1
 		panic("F and N not set correctly")
 	}
@@ -40,7 +47,7 @@ func shared_coin(sid string, pid int, N int, f int, meta tcrsa.KeyMeta, keyShare
 
 	// Calculate signature and broadcast to others
 	sigShare := threshsig.Sign(keyShare, docPK, &meta)
-	broadcast(sig_msg_stringify(sigShare))
+	broadcast(sig_msg_stringify(pid, sigShare))
 
 	// Wait for f+1 keyshares
 	meta.L = uint16(f + 1) // Need f +1 keyshares to verify signature
