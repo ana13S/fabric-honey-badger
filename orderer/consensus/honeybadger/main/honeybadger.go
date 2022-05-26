@@ -33,7 +33,6 @@ type honeybadger struct {
 	sSK                tcrsa.KeyShare
 	send               chan []byte
 	recv               chan []byte
-	round              int
 	transaction_buffer []string
 }
 
@@ -193,10 +192,10 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string) {
 func (hb *honeybadger) run() {
 	var new_txns []string
 	var hb_block chan []string
-	for {
+	for round := 0; round < 10; round++ {
 		var proposed = random_selection(hb.transaction_buffer, hb.B, hb.N)
 
-		hb.run_round(hb.round, proposed[0], hb_block)
+		hb.run_round(round, proposed[0], hb_block)
 
 		new_txns = <-hb_block
 
@@ -205,12 +204,6 @@ func (hb *honeybadger) run() {
 		}
 
 		new_txns = nil
-
-		hb.round += 1
-
-		if hb.round == 10 {
-			break
-		}
 	}
 }
 
@@ -235,7 +228,6 @@ func main() {
 		f:                  1,
 		sPK:                *meta,
 		sSK:                *shares[pid],
-		round:              0,
 		transaction_buffer: transaction_buffer,
 	}
 
