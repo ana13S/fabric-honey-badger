@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"fmt"
 	tcrsa "github.com/niclabs/tcrsa"
 	zmq "github.com/pebbe/zmq4"
 	"log"
@@ -17,6 +19,7 @@ var all_ports = []string{"5000", "5010", "5020", "5030"}
 var zctx *zmq.Context
 var socket *zmq.Socket
 var serverPort string
+var all_received = false
 
 type honeybadger struct {
 	sid                string
@@ -83,10 +86,24 @@ func remove(txns []string, txn string) []string {
 }
 
 func sendMessages(port string, hbm hbMessage) {
+	// if waitForReply {
+	// 	for {
+	// 		//Client port that sends messages
+	// 		socket.Connect("tcp://localhost:" + port)
+	// 		var finalMessage string = hbm.msgType + "_" + strconv.Itoa(hbm.sender) + "_" + hbm.msg
+	// 		socket.Send(finalMessage, 0)
+
+	// 		reply, _ := socket.Recv(0)
+	// 		return reply
+	// 	}
+	// } else {
 	//Client port that sends messages
 	socket.Connect("tcp://localhost:" + port)
 	var finalMessage string = hbm.msgType + "_" + strconv.Itoa(hbm.sender) + "_" + hbm.msg
 	socket.Send(finalMessage, 0)
+	fmt.Println("Sent to " + port + " message: " + hbm.msg)
+	// return ""
+	// }
 }
 
 func send(pid int, msg hbMessage) {
@@ -150,6 +167,8 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string) {
 	aba_recvs := make([](chan string), hb.N)
 	rbc_recvs := make([](chan string), hb.N)
 
+	go broadcast_receiver(coin_recvs, aba_recvs, rbc_recvs)
+
 	aba_inputs := make([](chan int), hb.N)
 	aba_outputs := make([](chan int), hb.N)
 	rbc_outputs := make([](chan string), hb.N)
@@ -176,8 +195,6 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string) {
 
 	go commonsubset(hb.pid, hb.N, hb.f, rbc_outputs, aba_inputs, aba_outputs, rbc_values)
 
-	go broadcast_receiver(coin_recvs, aba_recvs, rbc_recvs)
-
 	input := make(chan string)
 	input <- txn
 
@@ -202,29 +219,111 @@ func (hb *honeybadger) run() {
 	}
 }
 
+func sync_receiver() {
+	s, _ := zctx.NewSocket(zmq.REP)
+	s.Bind("tcp://*:" + serverPort)
+	var received = make(map[int]int)
+	var counter = 0
+
+	for {
+		// Wait for next request from client
+		message, _ := s.Recv(0)
+		log.Printf("Received %s\n", message)
+
+		if message != "" {
+			splitMsg := strings.Split(message, "_")
+
+			sender, _ := strconv.Atoi(splitMsg[1])
+
+			_, ok := received[sender]
+
+			if !ok {
+				received[sender] = 1
+			} else {
+				counter += 1
+				if counter == 3 {
+					all_received = true
+					break
+				}
+			}
+		}
+
+		// Do some 'work'
+		time.Sleep(time.Second * 1)
+	}
+}
+
+func sync_nodes(N int, pid int) {
+	for {
+		if all_received == true {
+			return
+		}
+
+		for i := 0; i < N; i++ {
+			if i != pid {
+				sendMessages(
+					all_ports[i],
+					hbMessage{
+						msgType: "SYNC",
+						sender:  pid,
+						msg:     "Random message",
+					})
+			}
+		}
+
+		time.Sleep(1 * time.Second)
+	}
+}
+
 func main() {
 	pid, _ := strconv.Atoi(os.Args[1])
+	N := 4
+	B := 4
+	f := 1
 
 	serverPort = all_ports[pid]
+
+	file, err := os.Open("transactions.log")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+
+	var transaction_buffer []string
+	for scanner.Scan() {
+		transaction_buffer = append(transaction_buffer, scanner.Text())
+	}
+
+	fmt.Println(transaction_buffer)
+
+	if err := scanner.Err(); err != nil {
+		log.Fatal(err)
+	}
 
 	zctx, _ = zmq.NewContext()
 
 	socket, _ = zctx.NewSocket(zmq.REQ)
 
-	var transaction_buffer = []string{"A_B_100", "B_C_200", "D_E_500", "E_B_300"}
-
-	shares, meta := threshsig.Dealer(4, 2, 2048)
+	shares, meta := threshsig.Dealer(4, 3, 2048)
 
 	hb := honeybadger{
 		sid:                "sidA",
 		pid:                pid,
-		B:                  4,
-		N:                  4,
-		f:                  1,
+		B:                  B,
+		N:                  N,
+		f:                  f,
 		sPK:                *meta,
 		sSK:                *shares[pid],
 		transaction_buffer: transaction_buffer,
 	}
+
+	go sync_receiver()
+	sync_nodes(N, pid)
+
+	fmt.Println("All nodes are up. Sleeping for 5 secs before starting the protocol.")
+	time.Sleep(5 * time.Second)
 
 	hb.run()
 }
