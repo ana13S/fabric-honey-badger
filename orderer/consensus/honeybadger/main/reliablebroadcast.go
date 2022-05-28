@@ -273,7 +273,7 @@ func reliablebroadcast(
 
 	var fromLeader []byte
 
-	stripes := make(map[string][][]byte)
+	stripes := make(map[string]map[int][]byte)
 
 	echoCounter := make(map[string]int)
 
@@ -344,7 +344,8 @@ func reliablebroadcast(
 			// need to add error handling
 
 			// update
-			stripes[string(roothash)][sender] = stripe
+			toStripe := map[int][]byte{sender : stripe}
+			stripes[string(roothash)] = toStripe
 			echoSenders.Add(sender)
 			echoCounter[string(roothash)] += 1
 
