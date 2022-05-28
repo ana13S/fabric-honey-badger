@@ -1,25 +1,31 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	tcrsa "github.com/niclabs/tcrsa"
 	zmq "github.com/pebbe/zmq4"
-	"log"
+	// "log"
 	mathrand "math/rand"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"threshsig"
 	"time"
 )
 
 var all_ports = []string{"5000", "5010", "5020", "5030"}
 
+var pid int
 var zctx *zmq.Context
 var socket *zmq.Socket
 var serverPort string
-var all_received = false
+var clients = make(map[int]*zmq.Socket)
+var wg sync.WaitGroup
+
+var coin_recvs [](chan string)
+var aba_recvs [](chan string)
+var rbc_recvs [](chan string)
 
 type honeybadger struct {
 	sid                string
@@ -65,9 +71,8 @@ func Shuffle(vals []string) []string {
 func random_selection(transaction_buffer []string, B int, N int) []string {
 	var shuffled = Shuffle(transaction_buffer[:B])
 	ret := make([]string, B/N)
-	var i int = 0
-	for ; i < B/N; i++ {
-		ret = append(ret, shuffled[i])
+	for i := 0; i < B/N; i++ {
+		ret[i] = shuffled[i]
 	}
 	return ret
 }
@@ -85,45 +90,9 @@ func remove(txns []string, txn string) []string {
 	return txns
 }
 
-func sendMessages(port string, hbm hbMessage) {
-	// if waitForReply {
-	// 	for {
-	// 		//Client port that sends messages
-	// 		socket.Connect("tcp://localhost:" + port)
-	// 		var finalMessage string = hbm.msgType + "_" + strconv.Itoa(hbm.sender) + "_" + hbm.msg
-	// 		socket.Send(finalMessage, 0)
-
-	// 		reply, _ := socket.Recv(0)
-	// 		return reply
-	// 	}
-	// } else {
-	//Client port that sends messages
-	socket.Connect("tcp://localhost:" + port)
-	var finalMessage string = hbm.msgType + "_" + strconv.Itoa(hbm.sender) + "_" + hbm.msg
-	socket.Send(finalMessage, 0)
-	fmt.Println("Sent to " + port + " message: " + hbm.msg)
-	// return ""
-	// }
-}
-
-func send(pid int, msg hbMessage) {
-	sendMessages(all_ports[pid], msg)
-}
-
-func broadcast(hbm hbMessage) {
-	for i := 0; i < len(all_ports); i++ {
-		if all_ports[i] != serverPort {
-			sendMessages(all_ports[i], hbm)
-		}
-	}
-}
-
 func getChannelFromMsg(
 	msgType string,
 	sender int,
-	coin_recvs []chan string,
-	aba_recvs []chan string,
-	rbc_recvs []chan string,
 ) chan string {
 	if msgType == "ABA" {
 		return aba_recvs[sender]
@@ -136,36 +105,73 @@ func getChannelFromMsg(
 	}
 }
 
-func broadcast_receiver(coin_recvs []chan string, aba_recvs []chan string, rbc_recvs []chan string) {
-	s, _ := zctx.NewSocket(zmq.REP)
-	s.Bind("tcp://*:" + serverPort)
+func handleMessageToSelf(hbm hbMessage) {
+	channel := getChannelFromMsg(hbm.msgType, pid)
+	channel <- hbm.msg
+}
+
+func sendMessages(to int, hbm hbMessage) {
+	//Client port that sends messages
+	// socket.Connect("tcp://localhost:" + port)
+	if pid != to {
+		var finalMessage string = hbm.msgType + "_" + strconv.Itoa(hbm.sender) + "_" + hbm.msg
+		fmt.Println("[sendMessages] Sending message ", finalMessage, " to ", to)
+		clients[to].Send(finalMessage, 0)
+
+		reply, _ := clients[to].Recv(0)
+		fmt.Println("[sendMessages] Received ", reply)
+	} else {
+		handleMessageToSelf(hbm)
+	}
+}
+
+func send(to int, msg hbMessage) {
+	sendMessages(to, msg)
+}
+
+func broadcast(hbm hbMessage) {
+	for i := 0; i < len(all_ports); i++ {
+		sendMessages(i, hbm)
+	}
+}
+
+func broadcast_receiver(s *zmq.Socket) {
+	// s, _ := zctx.NewSocket(zmq.REP)
+	// s.Bind("tcp://*:" + serverPort)
 
 	for {
 		// Wait for next request from client
 		message, _ := s.Recv(0)
-		log.Printf("Received %s\n", message)
+		fmt.Println("[broadcast_receiver] Received ", message)
 
+		// Parse the message
 		splitMsg := strings.Split(message, "_")
 		msgType := splitMsg[0]
 		sender, _ := strconv.Atoi(splitMsg[1])
 		msg := splitMsg[2]
 
-		channel := getChannelFromMsg(msgType, sender, coin_recvs, aba_recvs, rbc_recvs)
+		channel := getChannelFromMsg(msgType, sender)
 
+		// Put message in apt channel
 		channel <- msg
 
 		// Do some 'work'
 		time.Sleep(time.Second * 1)
+
+		// Send reply back to client
+		fmt.Println("[broadcast_receiver] Sending empty string as reply")
+		s.Send("", 0)
 	}
 }
 
-func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string) {
+func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, receiver *zmq.Socket) {
+	fmt.Println("[run_round] Running round ", r, " proposed txn: ", txn)
 
 	sid := hb.sid + ":" + strconv.Itoa(r)
 
-	coin_recvs := make([](chan string), hb.N)
-	aba_recvs := make([](chan string), hb.N)
-	rbc_recvs := make([](chan string), hb.N)
+	coin_recvs = make([](chan string), hb.N)
+	aba_recvs = make([](chan string), hb.N)
+	rbc_recvs = make([](chan string), hb.N)
 
 	go broadcast_receiver(coin_recvs, aba_recvs, rbc_recvs)
 
@@ -173,17 +179,29 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string) {
 	aba_outputs := make([](chan int), hb.N)
 	rbc_outputs := make([](chan string), hb.N)
 
-	my_rbc_input := make(chan string)
+	my_rbc_input := make(chan string, 1)
 
 	setup := func(j int) {
-		coin_recvs[j] = make(chan string)
-		aba_recvs[j] = make(chan string)
+		fmt.Println("[run_round] Setting up for node ", j)
 
+		// These are supposed to be infinite sized channels. Initializing with
+		// size N instead.
+		coin_recvs[j] = make(chan string, hb.N)
+		aba_recvs[j] = make(chan string, hb.N)
+
+		aba_inputs[j] = make(chan int, 1)
+		aba_outputs[j] = make(chan int, 1)
+		rbc_outputs[j] = make(chan string, 1)
+
+		fmt.Println("[run_round] Spawning binary agreement for node ", j)
 		go binaryagreement(sid+"ABA"+strconv.Itoa(j), hb.pid, hb.N, hb.f, aba_inputs[j], aba_outputs[j], aba_recvs[j],
 			sid+"COIN"+strconv.Itoa(j), hb.pid, hb.N, hb.f, hb.sPK, hb.sSK, coin_recvs[j])
 
-		rbc_recvs[j] = make(chan string)
+		// These are supposed to be infinite sized channels. Initializing with
+		// size N instead.
+		rbc_recvs[j] = make(chan string, hb.N)
 
+		fmt.Println("[run_round] Spawning reliable broadcast for node ", j)
 		go reliablebroadcast(sid+"RBC"+strconv.Itoa(j), hb.pid, hb.N, hb.f, j, my_rbc_input, rbc_recvs[j], rbc_outputs[j])
 	}
 
@@ -193,23 +211,34 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string) {
 
 	rbc_values := make([]chan string, hb.N)
 
+	fmt.Println("[run_round] Spawning common subset")
 	go commonsubset(hb.pid, hb.N, hb.f, rbc_outputs, aba_inputs, aba_outputs, rbc_values)
 
-	input := make(chan string)
+	fmt.Println("[run_round] Spawning broadcast receiver")
+	go broadcast_receiver(receiver)
+
+	fmt.Println("[run_round] Adding txn ", txn, " to input channel.")
+	input := make(chan string, 1)
 	input <- txn
 
+	fmt.Println("[run_round] Calling honeybadger_block for round ", r)
 	honeybadgerBlock(hb.pid, hb.N, hb.f, input, my_rbc_input, rbc_values, hb_block)
 }
 
-func (hb *honeybadger) run() {
+func (hb *honeybadger) run(receiver *zmq.Socket) {
+	fmt.Println("Starting honeybadger")
 	var new_txns []string
 	var hb_block chan []string
-	for round := 0; round < 10; round++ {
-		var proposed = random_selection(hb.transaction_buffer, hb.B, hb.N)
+	var proposed []string
+	for round := 0; round < 1; round++ {
+		proposed = random_selection(hb.transaction_buffer, hb.B, hb.N)
+		fmt.Println("Proposal for round ", round, ": ", proposed)
 
-		hb.run_round(round, proposed[0], hb_block)
+		hb.run_round(round, proposed[0], hb_block, receiver)
 
+		fmt.Println("[run] Round ", round, " is complete.")
 		new_txns = <-hb_block
+		fmt.Println("[run] Transactions committed in round ", round, ": ", new_txns)
 
 		for i := 0; i < len(new_txns); i++ {
 			hb.transaction_buffer = remove(hb.transaction_buffer, new_txns[i])
@@ -219,67 +248,42 @@ func (hb *honeybadger) run() {
 	}
 }
 
-func sync_receiver() {
-	s, _ := zctx.NewSocket(zmq.REP)
-	s.Bind("tcp://*:" + serverPort)
-	var received = make(map[int]int)
+func sync_nodes(s *zmq.Socket, pid int) {
+	defer wg.Done()
+	var receiver_map = make(map[string]string)
 	var counter = 0
 
 	for {
 		// Wait for next request from client
-		message, _ := s.Recv(0)
-		log.Printf("Received %s\n", message)
-
-		if message != "" {
-			splitMsg := strings.Split(message, "_")
-
-			sender, _ := strconv.Atoi(splitMsg[1])
-
-			_, ok := received[sender]
-
-			if !ok {
-				received[sender] = 1
-			} else {
-				counter += 1
-				if counter == 3 {
-					all_received = true
-					break
-				}
-			}
-		}
+		msg, _ := s.Recv(0)
+		fmt.Println("[sync_nodes] Received ", msg)
 
 		// Do some 'work'
 		time.Sleep(time.Second * 1)
-	}
-}
 
-func sync_nodes(N int, pid int) {
-	for {
-		if all_received == true {
-			return
-		}
+		// Send reply back to client
+		fmt.Println("[sync_nodes] Sending World as reply")
+		s.Send("World from "+strconv.Itoa(pid), 0)
 
-		for i := 0; i < N; i++ {
-			if i != pid {
-				sendMessages(
-					all_ports[i],
-					hbMessage{
-						msgType: "SYNC",
-						sender:  pid,
-						msg:     "Random message",
-					})
+		sender, ok := receiver_map[msg[len(msg)-1:]]
+		if !ok && strings.Contains(msg, "Hello") {
+			receiver_map[sender] = sender
+			counter += 1
+
+			if counter == 3 {
+				break
 			}
 		}
-
-		time.Sleep(1 * time.Second)
 	}
 }
 
 func main() {
-	pid, _ := strconv.Atoi(os.Args[1])
+	wg.Add(1)
+	pid, _ = strconv.Atoi(os.Args[1])
+
 	N := 4
-	B := 4
 	f := 1
+	B := 4
 
 	serverPort = all_ports[pid]
 
@@ -304,7 +308,18 @@ func main() {
 
 	zctx, _ = zmq.NewContext()
 
-	socket, _ = zctx.NewSocket(zmq.REQ)
+	receiver, _ := zctx.NewSocket(zmq.REP)
+	defer receiver.Close()
+
+	receiver.Bind("tcp://*:" + all_ports[pid])
+
+	go sync_nodes(receiver, pid)
+
+	time.Sleep(5 * time.Second)
+
+	var transaction_buffer = []string{"A_B_100", "B_C_200", "D_E_500", "E_B_300"}
+
+	fmt.Println("[main] buffer: ", transaction_buffer, " N: ", N, " f: ", f, " B: ", B)
 
 	shares, meta := threshsig.Dealer(4, 3, 2048)
 
@@ -319,11 +334,27 @@ func main() {
 		transaction_buffer: transaction_buffer,
 	}
 
-	go sync_receiver()
-	sync_nodes(N, pid)
+	for i := 0; i < N; i++ {
+		if i != pid {
+			clients[i], _ = zctx.NewSocket(zmq.REQ)
+			defer clients[i].Close()
+			clients[i].Connect("tcp://localhost:" + all_ports[i])
 
-	fmt.Println("All nodes are up. Sleeping for 5 secs before starting the protocol.")
+			fmt.Println("[main] Sending hello to ", i)
+			clients[i].Send("Hello from "+strconv.Itoa(pid), 0)
+
+			msg, _ := clients[i].Recv(0)
+			fmt.Printf("[main] Received reply from %d: %s\n", i, msg)
+		}
+	}
+
 	time.Sleep(5 * time.Second)
 
-	hb.run()
+	fmt.Println("[main] Waiting for sync go routines to complete")
+	wg.Wait()
+
+	time.Sleep(10 * time.Second)
+
+	fmt.Println("[main] Ready to run honeybadger ", hb.N)
+	hb.run(receiver)
 }

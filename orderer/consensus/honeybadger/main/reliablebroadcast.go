@@ -260,7 +260,7 @@ func reliablebroadcast(
 			toSend := rb_msg_stringify(
 				pid,
 				Rb_msg{
-					Pid:      i,
+					Pid:      pid,
 					Msg_type: "VAL",
 					Roothash: roothash,
 					Branch:   branch,
@@ -324,7 +324,7 @@ func reliablebroadcast(
 			toBroadcast := rb_msg_stringify(
 				pid,
 				Rb_msg{
-					Pid:      999,
+					Pid:      pid,
 					Msg_type: "ECHO",
 					Roothash: roothash,
 					Branch:   branch,
@@ -353,7 +353,7 @@ func reliablebroadcast(
 				toBroadcast := rb_msg_stringify(
 					pid,
 					Rb_msg{
-						Pid:      999,
+						Pid:      pid,
 						Msg_type: "READY",
 						Roothash: roothash,
 						Branch:   nil,
@@ -376,7 +376,7 @@ func reliablebroadcast(
 				toBroadcast := rb_msg_stringify(
 					pid,
 					Rb_msg{
-						Pid:      999,
+						Pid:      pid,
 						Msg_type: "READY",
 						Roothash: roothash,
 						Branch:   nil,
