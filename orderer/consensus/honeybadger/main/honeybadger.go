@@ -151,17 +151,19 @@ func broadcast_receiver(s *zmq.Socket) {
 		sender, _ := strconv.Atoi(splitMsg[1])
 		msg := splitMsg[2]
 
-		channel := getChannelFromMsg(msgType, sender)
+		if msgType != "IGNORE" {
+			channel := getChannelFromMsg(msgType, sender)
 
-		// Put message in apt channel
-		channel <- msg
+			// Put message in apt channel
+			channel <- msg
+		}
 
 		// Do some 'work'
 		time.Sleep(time.Second * 1)
 
 		// Send reply back to client
-		fmt.Println("[broadcast_receiver] Sending empty string as reply")
-		s.Send("", 0)
+		fmt.Println("[broadcast_receiver] Sending ingore message as reply")
+		s.Send("IGNORE_"+strconv.Itoa(pid), 0)
 	}
 }
 
