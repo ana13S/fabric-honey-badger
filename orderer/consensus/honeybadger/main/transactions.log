@@ -1,0 +1,4 @@
+From: A To: B Amt: 100
+From: B To: C Amt: 200
+From: C To: D Amt: 50
+From: D To: B Amt: 300
