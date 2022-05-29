@@ -79,40 +79,6 @@ func decode(K int, N int, data [][]byte) string {
 
 }
 
-/*
-// clone HBFT hash
-// note we assume input is byte slice or a string
-func hash(x interface{}) string {
-
-	// create hash object
-	h := sha256.New()
-
-	// switch depending on whether x is byte slice or string
-	switch x.(type) {
-
-	case string:
-
-		xBytes := []byte(fmt.Sprintf("%v", x))
-		h.Write(xBytes)
-
-	case []byte:
-
-		xBytes := x.([]byte)
-		h.Write(xBytes)
-
-	}
-
-	// return hex string
-	return fmt.Sprintf("%x", h.Sum(nil))
-
-}
-
-// clone HBFT ceil
-func ceil(x float64) float64 {
-	return math.Ceil(x)
-}
-*/
-
 //TestContent implements the Content interface provided by merkletree and represents the content stored in the tree.
 type TestContent struct {
 	x []byte
@@ -124,7 +90,6 @@ func (t TestContent) CalculateHash() ([]byte, error) {
 	if _, err := h.Write(t.x); err != nil {
 		return nil, err
 	}
-
 	return h.Sum(nil), nil
 }
 
@@ -183,14 +148,6 @@ func merkleVerify(val []byte, roothash []byte, branch [][]byte) bool {
 	}
 
 }
-
-// Channel cannot return tuple so I defined a struct for receive/send
-/**
-type rb_msg struct {
-	pid   int
-	iface []interface{}
-}
-**/
 
 type Rb_msg struct {
 	Pid      int
@@ -271,8 +228,6 @@ func reliablebroadcast(
 		}
 	}
 
-	var fromLeader []byte
-
 	stripes := make(map[string]map[int][]byte)
 
 	echoCounter := make(map[string]int)
@@ -284,7 +239,13 @@ func reliablebroadcast(
 	ready := make(map[string]mapset.Set)
 
 	decode_output := func(roothash []byte) string {
-		m := decode(K, N, stripes[string(roothash)])
+
+		assembledStripes := [][]byte{}
+		for i := 0; i < N; i++ {
+			assembledStripes = append(assembledStripes, stripes[string(roothash)][i])
+		}
+
+		m := decode(K, N, assembledStripes)
 		_stripes := encode(K, N, m)
 		_mt := makeMerkleTree(_stripes)
 		_roothash := _mt.MerkleRoot()
@@ -304,7 +265,7 @@ func reliablebroadcast(
 		recvd_msg := rb_msg_parse(rb_msg_raw)
 		sender := recvd_msg.Pid
 
-		if recvd_msg.Msg_type == "VAL" && fromLeader == nil {
+		if recvd_msg.Msg_type == "VAL" {
 
 			roothash := recvd_msg.Roothash
 			branch := recvd_msg.Branch
@@ -316,10 +277,8 @@ func reliablebroadcast(
 
 			if !merkleVerify(stripe, roothash, branch) {
 				log.Println("Failed to validate ECHO message!")
+				continue
 			}
-			// need to add error handling
-
-			fromLeader = roothash
 
 			toBroadcast := rb_msg_stringify(
 				pid,
@@ -340,11 +299,11 @@ func reliablebroadcast(
 
 			if !merkleVerify(stripe, roothash, branch) {
 				log.Println("Failed to validate ECHO message!")
+				continue
 			}
-			// need to add error handling
 
-			// update
-			toStripe := map[int][]byte{sender : stripe}
+			// update records
+			toStripe := map[int][]byte{sender: stripe}
 			stripes[string(roothash)] = toStripe
 			echoSenders.Add(sender)
 			echoCounter[string(roothash)] += 1
