@@ -162,7 +162,7 @@ func broadcast_receiver(s *zmq.Socket) {
 		time.Sleep(time.Second * 1)
 
 		// Send reply back to client
-		fmt.Println("[broadcast_receiver] Sending ingore message as reply")
+		fmt.Println("[broadcast_receiver] Sending Ignore message as reply")
 		s.Send("IGNORE_"+strconv.Itoa(pid), 0)
 	}
 }
@@ -175,8 +175,6 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, rece
 	coin_recvs = make([](chan string), hb.N)
 	aba_recvs = make([](chan string), hb.N)
 	rbc_recvs = make([](chan string), hb.N)
-
-	go broadcast_receiver(receiver)
 
 	aba_inputs := make([](chan int), hb.N)
 	aba_outputs := make([](chan int), hb.N)
