@@ -6,14 +6,11 @@ import (
 
 	//"fmt"
 
+	"encoding/json"
 	"log"
 	"strings"
+	"time"
 
-	"encoding/json"
-
-	"github.com/cbergoon/merkletree"
-
-	mapset "github.com/deckarep/golang-set"
 	"github.com/klauspost/reedsolomon"
 )
 
@@ -79,79 +76,28 @@ func decode(K int, N int, data [][]byte) string {
 
 }
 
-//TestContent implements the Content interface provided by merkletree and represents the content stored in the tree.
-type TestContent struct {
-	x []byte
+func hashLister(codeword [][]byte) [][]byte {
+	var output [][]byte
+	for i := 0; i < len(codeword); i++ {
+		valHasher := sha256.New()
+		valHasher.Write(codeword[i])
+		outHash := valHasher.Sum(nil)
+		output = append(output, outHash)
+	}
+	return output
 }
 
-//CalculateHash hashes the values of a TestContent
-func (t TestContent) CalculateHash() ([]byte, error) {
-	h := sha256.New()
-	if _, err := h.Write(t.x); err != nil {
-		return nil, err
-	}
-	return h.Sum(nil), nil
-}
-
-//Equals tests for equality of two Contents
-func (t TestContent) Equals(other merkletree.Content) (bool, error) {
-
-	res := bytes.Compare(t.x, other.(TestContent).x)
-	if res == 0 {
-		return true, nil
-	} else {
-		return false, nil
-	}
-}
-
-func makeMerkleTree(shardData [][]byte) *merkletree.MerkleTree {
-
-	// convert shardData to TestContent
-	var list []merkletree.Content
-	for _, shard := range shardData {
-		list = append(list, TestContent{x: shard})
-	}
-
-	t, _ := merkletree.NewTree(list)
-
-	return t
-
-}
-
-func getMerkleBranch(val []byte, mt *merkletree.MerkleTree) [][]byte {
-
-	branch, _, _ := mt.GetMerklePath(TestContent{x: val})
-
-	return branch
-
-}
-
-func merkleVerify(val []byte, roothash []byte, branch [][]byte) bool {
-
-	valHasher := sha256.New()
-	valHasher.Write(val)
-	runningHash := valHasher.Sum(nil)
-
-	for _, branchHash := range branch {
-
-		h := sha256.New()
-		h.Write(runningHash)
-		h.Write(branchHash)
-		runningHash = h.Sum(nil)
-
-	}
-
-	if bytes.Equal(runningHash, roothash) {
-		return true
-	} else {
-		return false
-	}
-
+func hashVerify(hashlist [][]byte, pos int, symbol []byte) bool {
+	hasher := sha256.New()
+	hasher.Write(symbol)
+	symbolHash := hasher.Sum(nil)
+	return bytes.Equal(symbolHash, hashlist[pos])
 }
 
 type Rb_msg struct {
 	Pid      int
-	Msg_type string
+	Sid      int
+	MsgType  string
 	Roothash []byte
 	Branch   [][]byte
 	Stripe   []byte
@@ -192,38 +138,33 @@ func reliablebroadcast(
 	ReadyThreshold := f + 1 // Wait for this many READY to amplify READY. (# noqa: E221)
 	OutputThreshold := 2*f + 1
 
-	// broadcast := func(msg string) {
-	// 	for i := 0; i < N; i++ {
-	// 		send(i, msg)
-	// 	}
-	// }
-
 	var m string
 	if pid == leader {
 		m = <-input
 
 		// stripes is [][]byte
-		stripes := encode(K, N, m)
+		codeword := encode(K, N, m)
 
-		// pointer to a local merkletree.MerkleTree object
-		mt := makeMerkleTree(stripes)
-
-		// roothash is []byte
-		roothash := mt.MerkleRoot()
+		// use list hash
+		hasher := sha256.New()
+		hasher.Write([]byte(m))
+		roothash := hasher.Sum(nil)
+		branch := hashLister(codeword)
 
 		for i := 0; i < N; i++ {
-			branch := getMerkleBranch(stripes[i], mt)
 
 			toSend := rb_msg_stringify(
 				pid,
 				Rb_msg{
 					Pid:      pid,
-					Msg_type: "VAL",
+					Sid:      i,
+					MsgType:  "VAL",
 					Roothash: roothash,
 					Branch:   branch,
-					Stripe:   stripes[i],
+					Stripe:   codeword[i],
 				})
 
+			time.Sleep(time.Second * 3)
 			send(i, toSend)
 		}
 	}
@@ -233,10 +174,8 @@ func reliablebroadcast(
 	echoCounter := make(map[string]int)
 
 	readySent := false
-	echoSenders := mapset.NewSet()
-	readySenders := mapset.NewSet()
 
-	ready := make(map[string]mapset.Set)
+	ready := make(map[string]int)
 
 	decode_output := func(roothash []byte) string {
 
@@ -246,67 +185,79 @@ func reliablebroadcast(
 		}
 
 		m := decode(K, N, assembledStripes)
-		_stripes := encode(K, N, m)
-		_mt := makeMerkleTree(_stripes)
-		_roothash := _mt.MerkleRoot()
-		if bytes.Equal(_roothash, roothash) {
+
+		hasher := sha256.New()
+		hasher.Write([]byte(m))
+		if bytes.Equal(roothash, hasher.Sum(nil)) {
 			return m
 		} else {
 			return "FAILURE"
 		}
 	}
 
+	var rb_msg_raw string
+
 	for {
 
 		// read in marshaled string
-		rb_msg_raw := <-receive
+		rb_msg_raw = <-receive
 
 		// unmarshal
 		recvd_msg := rb_msg_parse(rb_msg_raw)
 		sender := recvd_msg.Pid
+		roothash := recvd_msg.Roothash
+		branch := recvd_msg.Branch
+		stripe := recvd_msg.Stripe
+		pos := recvd_msg.Sid
 
-		if recvd_msg.Msg_type == "VAL" {
+		// Verify received message
+		if !hashVerify(branch, pos, stripe) {
+			log.Println("Failed to validate message!")
+			continue
+		} else {
+			log.Println("Message validated!")
+		}
 
-			roothash := recvd_msg.Roothash
-			branch := recvd_msg.Branch
-			stripe := recvd_msg.Stripe
+		if recvd_msg.MsgType == "VAL" {
+
+			log.Println("Received val for roothash", roothash)
 
 			if sender != leader {
 				log.Println("VAL message from other than leader:", sender)
-			}
-
-			if !merkleVerify(stripe, roothash, branch) {
-				log.Println("Failed to validate ECHO message!")
-				continue
 			}
 
 			toBroadcast := rb_msg_stringify(
 				pid,
 				Rb_msg{
 					Pid:      pid,
-					Msg_type: "ECHO",
+					Sid:      pos,
+					MsgType:  "ECHO",
 					Roothash: roothash,
 					Branch:   branch,
 					Stripe:   stripe,
 				})
-			broadcast(toBroadcast)
 
-		} else if recvd_msg.Msg_type == "ECHO" {
+			for i := 0; i < N; i++ {
 
-			roothash := recvd_msg.Roothash
-			branch := recvd_msg.Branch
-			stripe := recvd_msg.Stripe
-
-			if !merkleVerify(stripe, roothash, branch) {
-				log.Println("Failed to validate ECHO message!")
-				continue
+				time.Sleep(time.Second * 3)
+				send(i, toBroadcast)
 			}
+
+		} else if recvd_msg.MsgType == "ECHO" {
+
+			log.Println("Received echo for roothash", roothash)
 
 			// update records
 			toStripe := map[int][]byte{sender: stripe}
 			stripes[string(roothash)] = toStripe
-			echoSenders.Add(sender)
+			log.Println(echoCounter)
+			log.Println(sid, pid, N, leader)
 			echoCounter[string(roothash)] += 1
+			log.Println("+++++++++++++++++++++++++")
+			log.Println("+++++++++++++++++++++++++")
+			log.Println("Roothash", roothash, "has current echo count", echoCounter[string(roothash)])
+			log.Println("+++++++++++++++++++++++++")
+			log.Println("+++++++++++++++++++++++++")
 
 			if echoCounter[string(roothash)] >= EchoThreshold && !readySent {
 				readySent = true
@@ -314,102 +265,58 @@ func reliablebroadcast(
 					pid,
 					Rb_msg{
 						Pid:      pid,
-						Msg_type: "READY",
+						Sid:      pos,
+						MsgType:  "READY",
 						Roothash: roothash,
-						Branch:   nil,
-						Stripe:   nil,
+						Branch:   branch,
+						Stripe:   stripe,
 					})
-				broadcast(toBroadcast)
+				for i := 0; i < N; i++ {
+
+					time.Sleep(time.Second * 3)
+					send(i, toBroadcast)
+				}
 			}
 
-			if ready[string(roothash)].Cardinality() >= OutputThreshold && echoCounter[string(roothash)] >= K {
+			headcount := ready[string(roothash)]
+			echoCount := echoCounter[string(roothash)]
+			if headcount >= OutputThreshold && echoCount >= K {
+				log.Println("REACHED!!!!")
 				retChan <- decode_output(roothash)
 			}
 
-		} else if recvd_msg.Msg_type == "READY" {
+		} else if recvd_msg.MsgType == "READY" {
 			roothash := recvd_msg.Roothash
-			ready[string(roothash)].Add(sender)
-			readySenders.Add(sender)
+			ready[string(roothash)] += 1
 
-			if ready[string(roothash)].Cardinality() >= ReadyThreshold && !readySent {
+			if ready[string(roothash)] >= ReadyThreshold && !readySent {
 				readySent = true
 				toBroadcast := rb_msg_stringify(
 					pid,
 					Rb_msg{
 						Pid:      pid,
-						Msg_type: "READY",
+						Sid:      pos,
+						MsgType:  "READY",
 						Roothash: roothash,
-						Branch:   nil,
-						Stripe:   nil,
+						Branch:   branch,
+						Stripe:   stripe,
 					})
-				broadcast(toBroadcast)
+				for i := 0; i < N; i++ {
+
+					time.Sleep(time.Second * 3)
+					send(i, toBroadcast)
+				}
 			}
 
-			if ready[string(roothash)].Cardinality() >= OutputThreshold && echoCounter[string(roothash)] >= K {
+			if ready[string(roothash)] >= OutputThreshold && echoCounter[string(roothash)] >= K {
+				log.Println("REACHED!!!!")
 				retChan <- decode_output(roothash)
 			}
+		} else {
+			log.Println("ERROR: Message Type Unknown!!!")
 		}
 
 	}
 
 }
 
-/*
-func main() {
-
-	/*
-		// Erasure Code Testing
-
-			codeword := encode(5, 20, "helloworldys")
-			fmt.Println(codeword)
-			for i := 0; i < 15; i++ {
-				codeword[i] = nil
-			}
-			fmt.Println(codeword)
-			recoveredString := decode(5, 20, codeword)
-			fmt.Println(recoveredString)
-			fmt.Println(len(recoveredString))
-*/
-
-// Hash Testing
-/*
-	someHash := hash([]byte("Hello World"))
-	fmt.Println(someHash)
-	anotherHash := hash("Hello World")
-	fmt.Println(anotherHash)
-*/
-
-// Ceil Testing
-/*
-	someFloat := 3.14
-	fmt.Println(ceil(someFloat))
-*/
-
-// Merkle Tree Testing
-
-/*
-		codeword := encode(5, 20, "helloworldys")
-		mt := makeMerkleTree(codeword)
-		roothash := mt.MerkleRoot()
-		branch := getMerkleBranch(codeword[0], mt)
-
-		rbm := Rb_msg{
-			Pid:      0,
-			Msg_type: "Type",
-			Roothash: roothash,
-			Branch:   branch,
-			Stripe:   codeword[0],
-		}
-
-		fmt.Println(rbm)
-
-		rbm_strung := rb_msg_stringify(rbm)
-
-		fmt.Println("HIWHAT")
-		fmt.Println(rbm_strung)
-		fmt.Println("HIWHAT")
-
-		rbm_reloaded := rb_msg_parse(rbm_strung)
-
-		fmt.Println(rbm_reloaded)
-} */
