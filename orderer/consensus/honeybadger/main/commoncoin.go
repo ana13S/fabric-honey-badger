@@ -36,7 +36,7 @@ func sig_msg_parse(msg string) tcrsa.SigShare {
 
 // keyMeta holds public key
 // keyShare holds values for specific node(including something similar to secret key)
-func shared_coin(sid string, pid int, N int, f int, meta tcrsa.KeyMeta, keyShare tcrsa.KeyShare,
+func shared_coin(sid string, pid int, N int, f int, leader int, meta tcrsa.KeyMeta, keyShare tcrsa.KeyShare,
 	receive chan string, r int) int {
 	if int(meta.L) != N || int(meta.L) != f+1 { // assert PK.l == N   assert PK.k == f+1
 		panic("F and N not set correctly")
@@ -47,7 +47,7 @@ func shared_coin(sid string, pid int, N int, f int, meta tcrsa.KeyMeta, keyShare
 
 	// Calculate signature and broadcast to others
 	sigShare := threshsig.Sign(keyShare, docPK, &meta)
-	broadcast(sig_msg_stringify(pid, sigShare))
+	broadcast(sig_msg_stringify(leader, sigShare))
 
 	// Wait for f+1 keyshares
 	meta.L = uint16(f + 1) // Need f +1 keyshares to verify signature

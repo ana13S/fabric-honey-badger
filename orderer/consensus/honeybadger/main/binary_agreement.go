@@ -225,6 +225,7 @@ func binaryagreement(
 				coin_pid,
 				coin_N,
 				coin_f,
+				leader,
 				coin_meta,
 				coin_keyShare,
 				// coin_broadcast,
