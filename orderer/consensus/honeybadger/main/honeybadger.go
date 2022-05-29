@@ -1,10 +1,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	tcrsa "github.com/niclabs/tcrsa"
 	zmq "github.com/pebbe/zmq4"
-	// "log"
+	"log"
 	mathrand "math/rand"
 	"os"
 	"strconv"
@@ -173,7 +174,7 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, rece
 	aba_recvs = make([](chan string), hb.N)
 	rbc_recvs = make([](chan string), hb.N)
 
-	go broadcast_receiver(coin_recvs, aba_recvs, rbc_recvs)
+	go broadcast_receiver(receiver)
 
 	aba_inputs := make([](chan int), hb.N)
 	aba_outputs := make([](chan int), hb.N)
@@ -300,8 +301,6 @@ func main() {
 		transaction_buffer = append(transaction_buffer, scanner.Text())
 	}
 
-	fmt.Println(transaction_buffer)
-
 	if err := scanner.Err(); err != nil {
 		log.Fatal(err)
 	}
@@ -316,8 +315,6 @@ func main() {
 	go sync_nodes(receiver, pid)
 
 	time.Sleep(5 * time.Second)
-
-	var transaction_buffer = []string{"A_B_100", "B_C_200", "D_E_500", "E_B_300"}
 
 	fmt.Println("[main] buffer: ", transaction_buffer, " N: ", N, " f: ", f, " B: ", B)
 
