@@ -180,6 +180,16 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, rece
 	aba_outputs := make([](chan int), hb.N)
 	rbc_outputs := make([](chan string), hb.N)
 
+	for j := 0; j < hb.N; j++ {
+		coin_recvs[j] = make(chan string, hb.N)
+		aba_recvs[j] = make(chan string, hb.N)
+		rbc_recvs[j] = make(chan string, hb.N)
+
+		aba_inputs[j] = make(chan int, 1)
+		aba_outputs[j] = make(chan int, 1)
+		rbc_outputs[j] = make(chan string, 1)
+	}
+
 	my_rbc_input := make(chan string, 1)
 
 	setup := func(j int) {
@@ -187,12 +197,6 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, rece
 
 		// These are supposed to be infinite sized channels. Initializing with
 		// size N instead.
-		coin_recvs[j] = make(chan string, hb.N)
-		aba_recvs[j] = make(chan string, hb.N)
-
-		aba_inputs[j] = make(chan int, 1)
-		aba_outputs[j] = make(chan int, 1)
-		rbc_outputs[j] = make(chan string, 1)
 
 		fmt.Println("[run_round] Spawning binary agreement for node ", j)
 		go binaryagreement(sid+"ABA"+strconv.Itoa(j), hb.pid, hb.N, hb.f, aba_inputs[j], aba_outputs[j], aba_recvs[j],
@@ -200,15 +204,15 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, rece
 
 		// These are supposed to be infinite sized channels. Initializing with
 		// size N instead.
-		rbc_recvs[j] = make(chan string, hb.N)
 
 		fmt.Println("[run_round] Spawning reliable broadcast for node ", j)
 		go reliablebroadcast(sid+"RBC"+strconv.Itoa(j), hb.pid, hb.N, hb.f, j, my_rbc_input, rbc_recvs[j], rbc_outputs[j])
 	}
 
-	for j := 0; j < hb.N; j++ {
-		setup(j)
-	}
+	// for j := 0; j < hb.N; j++ {
+	// 	setup(j)
+	// }
+	setup(0)
 
 	rbc_values := make([]chan string, hb.N)
 

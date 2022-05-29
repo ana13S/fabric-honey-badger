@@ -103,11 +103,11 @@ type Rb_msg struct {
 	Stripe   []byte
 }
 
-func rb_msg_stringify(pid int, msg Rb_msg) hbMessage {
+func rb_msg_stringify(leader int, msg Rb_msg) hbMessage {
 	marsh, _ := json.Marshal(msg)
 	message := string(marsh)
 	msgType := "RBC"
-	sender := pid
+	sender := leader
 	return hbMessage{
 		msgType: msgType,
 		sender:  sender,
@@ -154,7 +154,7 @@ func reliablebroadcast(
 		for i := 0; i < N; i++ {
 
 			toSend := rb_msg_stringify(
-				pid,
+				leader,
 				Rb_msg{
 					Pid:      pid,
 					Sid:      i,
@@ -227,7 +227,7 @@ func reliablebroadcast(
 			}
 
 			toBroadcast := rb_msg_stringify(
-				pid,
+				leader,
 				Rb_msg{
 					Pid:      pid,
 					Sid:      pos,
@@ -262,7 +262,7 @@ func reliablebroadcast(
 			if echoCounter[string(roothash)] >= EchoThreshold && !readySent {
 				readySent = true
 				toBroadcast := rb_msg_stringify(
-					pid,
+					leader,
 					Rb_msg{
 						Pid:      pid,
 						Sid:      pos,
@@ -292,7 +292,7 @@ func reliablebroadcast(
 			if ready[string(roothash)] >= ReadyThreshold && !readySent {
 				readySent = true
 				toBroadcast := rb_msg_stringify(
-					pid,
+					leader,
 					Rb_msg{
 						Pid:      pid,
 						Sid:      pos,
@@ -319,4 +319,3 @@ func reliablebroadcast(
 	}
 
 }
-
