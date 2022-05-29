@@ -199,7 +199,7 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, rece
 		// size N instead.
 
 		fmt.Println("[run_round] Spawning binary agreement for node ", j)
-		go binaryagreement(sid+"ABA"+strconv.Itoa(j), hb.pid, hb.N, hb.f, aba_inputs[j], aba_outputs[j], aba_recvs[j],
+		go binaryagreement(sid+"ABA"+strconv.Itoa(j), hb.pid, hb.N, hb.f, j, aba_inputs[j], aba_outputs[j], aba_recvs[j],
 			sid+"COIN"+strconv.Itoa(j), hb.pid, hb.N, hb.f, hb.sPK, hb.sSK, coin_recvs[j])
 
 		// These are supposed to be infinite sized channels. Initializing with
