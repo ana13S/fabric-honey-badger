@@ -8,7 +8,8 @@ import (
 
 	"encoding/json"
 	"log"
-	"strings"
+
+	//"strings"
 	"time"
 
 	"github.com/klauspost/reedsolomon"
@@ -19,10 +20,15 @@ func encode(K int, N int, m string) [][]byte {
 
 	// pad m to a number of characters that is a multiple of K
 	// DANGER: we assume that len(m) >= K
-	if len(m)%K != 0 {
-		padlen := K - (len(m) % K)
-		m += strings.Repeat(string(rune(K-padlen)), padlen)
+	for {
+		if len(m)%K != 0 {
+			m += "&"
+		} else {
+			break
+		}
 	}
+
+	log.Println("Padded String, to be encoded:", m, ".")
 
 	// convert m to byte slice
 	mByteSlice := []byte(m)
@@ -54,6 +60,8 @@ func encode(K int, N int, m string) [][]byte {
 // clone of HBFT decode
 func decode(K int, N int, data [][]byte) string {
 
+	log.Println("REACHED INNER DECODE")
+	log.Println("Data to reconstruct:", data)
 	// localize data
 	localData := data
 
@@ -62,17 +70,16 @@ func decode(K int, N int, data [][]byte) string {
 	_ = dec.Reconstruct(localData)
 
 	//recover padded string
-	paddedString := ""
+	msgString := ""
 	for i := 0; i < K; i++ {
-		paddedString += string(localData[i])
+		nextChar := string(localData[i])
+		if nextChar != "&" {
+			msgString += string(localData[i])
+		}
+
 	}
-
-	// remove padding
-	paddedStringLen := len(paddedString)
-	padlen := int(paddedString[paddedStringLen-1])
-	trimmedString := paddedString[:paddedStringLen-padlen-1]
-
-	return trimmedString
+	log.Println("Decoding finished:", msgString)
+	return msgString
 
 }
 
@@ -130,7 +137,7 @@ func reliablebroadcast(
 	input <-chan string,
 	receive <-chan string,
 	// send func(i int, msg string),
-	retChan chan<- string) string {
+	retChan chan<- string) {
 
 	// default code
 	K := N - 2*f            // Need this many to reconstruct. (# noqa: E221)
@@ -144,6 +151,7 @@ func reliablebroadcast(
 
 		// stripes is [][]byte
 		codeword := encode(K, N, m)
+		//log.Println("Encoded Codeword, from leader:", codeword)
 
 		// use list hash
 		hasher := sha256.New()
@@ -156,8 +164,8 @@ func reliablebroadcast(
 			toSend := rb_msg_stringify(
 				leader,
 				Rb_msg{
-					Pid:      pid,
-					Sid:      i,
+					Pid:      pid, //self
+					Sid:      i,   //who the message is addressed to
 					MsgType:  "VAL",
 					Roothash: roothash,
 					Branch:   branch,
@@ -205,13 +213,13 @@ func reliablebroadcast(
 		// unmarshal
 		recvd_msg := rb_msg_parse(rb_msg_raw)
 		sender := recvd_msg.Pid
+		recipient := recvd_msg.Sid
 		roothash := recvd_msg.Roothash
 		branch := recvd_msg.Branch
 		stripe := recvd_msg.Stripe
-		pos := recvd_msg.Sid
 
 		// Verify received message
-		if !hashVerify(branch, pos, stripe) {
+		if !hashVerify(branch, recipient, stripe) {
 			log.Println("Failed to validate message!")
 			continue
 		} else {
@@ -220,17 +228,23 @@ func reliablebroadcast(
 
 		if recvd_msg.MsgType == "VAL" {
 
-			log.Println("Received val for roothash", roothash)
+			//log.Println("Received val for roothash", roothash)
 
 			if sender != leader {
 				log.Println("VAL message from other than leader:", sender)
 			}
 
+			// update records
+			if len(stripes[string(roothash)]) == 0 {
+				stripes[string(roothash)] = make(map[int][]byte)
+			}
+			stripes[string(roothash)][recipient] = stripe
+
 			toBroadcast := rb_msg_stringify(
 				leader,
 				Rb_msg{
 					Pid:      pid,
-					Sid:      pos,
+					Sid:      recipient,
 					MsgType:  "ECHO",
 					Roothash: roothash,
 					Branch:   branch,
@@ -245,19 +259,22 @@ func reliablebroadcast(
 
 		} else if recvd_msg.MsgType == "ECHO" {
 
-			log.Println("Received echo for roothash", roothash)
+			//log.Println("Received echo for roothash", roothash)
 
 			// update records
-			toStripe := map[int][]byte{sender: stripe}
-			stripes[string(roothash)] = toStripe
+			if len(stripes[string(roothash)]) == 0 {
+				stripes[string(roothash)] = make(map[int][]byte)
+			}
+			stripes[string(roothash)][recipient] = stripe
+
 			log.Println(echoCounter)
 			log.Println(sid, pid, N, leader)
 			echoCounter[string(roothash)] += 1
-			log.Println("+++++++++++++++++++++++++")
-			log.Println("+++++++++++++++++++++++++")
-			log.Println("Roothash", roothash, "has current echo count", echoCounter[string(roothash)])
-			log.Println("+++++++++++++++++++++++++")
-			log.Println("+++++++++++++++++++++++++")
+			//log.Println("+++++++++++++++++++++++++")
+			//log.Println("+++++++++++++++++++++++++")
+			//log.Println("Roothash", roothash, "has current echo count", echoCounter[string(roothash)])
+			//log.Println("+++++++++++++++++++++++++")
+			//log.Println("+++++++++++++++++++++++++")
 
 			if echoCounter[string(roothash)] >= EchoThreshold && !readySent {
 				readySent = true
@@ -265,7 +282,7 @@ func reliablebroadcast(
 					leader,
 					Rb_msg{
 						Pid:      pid,
-						Sid:      pos,
+						Sid:      recipient,
 						MsgType:  "READY",
 						Roothash: roothash,
 						Branch:   branch,
@@ -280,14 +297,23 @@ func reliablebroadcast(
 
 			headcount := ready[string(roothash)]
 			echoCount := echoCounter[string(roothash)]
-			if headcount >= OutputThreshold && echoCount >= K {
-				log.Println("REACHED!!!!")
+			log.Println("Ready+1:", ready[string(roothash)]+1, "-- Echo:", echoCounter[string(roothash)])
+			if headcount+1 >= OutputThreshold && echoCount >= K {
+				log.Println("REACHED Gate ECHO!!!!")
+				log.Println("Accumulated stripes:", stripes[string(roothash)])
 				retChan <- decode_output(roothash)
+				break
 			}
 
 		} else if recvd_msg.MsgType == "READY" {
 			roothash := recvd_msg.Roothash
 			ready[string(roothash)] += 1
+
+			// update records
+			if len(stripes[string(roothash)]) == 0 {
+				stripes[string(roothash)] = make(map[int][]byte)
+			}
+			stripes[string(roothash)][recipient] = stripe
 
 			if ready[string(roothash)] >= ReadyThreshold && !readySent {
 				readySent = true
@@ -295,7 +321,7 @@ func reliablebroadcast(
 					leader,
 					Rb_msg{
 						Pid:      pid,
-						Sid:      pos,
+						Sid:      recipient,
 						MsgType:  "READY",
 						Roothash: roothash,
 						Branch:   branch,
@@ -307,10 +333,12 @@ func reliablebroadcast(
 					send(i, toBroadcast)
 				}
 			}
-
-			if ready[string(roothash)] >= OutputThreshold && echoCounter[string(roothash)] >= K {
-				log.Println("REACHED!!!!")
+			log.Println("Ready+1:", ready[string(roothash)]+1, "-- Echo:", echoCounter[string(roothash)])
+			if ready[string(roothash)]+1 >= OutputThreshold && echoCounter[string(roothash)] >= K {
+				log.Println("REACHED Gate READY!!!!")
+				log.Println("Accumulated stripes:", stripes[string(roothash)])
 				retChan <- decode_output(roothash)
+				break
 			}
 		} else {
 			log.Println("ERROR: Message Type Unknown!!!")
