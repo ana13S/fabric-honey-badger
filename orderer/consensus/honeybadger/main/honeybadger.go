@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	// "github.com/juju/fslock"
 	tcrsa "github.com/niclabs/tcrsa"
 	zmq "github.com/pebbe/zmq4"
 	"log"
@@ -107,7 +108,7 @@ func getChannelFromMsg(
 }
 
 func handleMessageToSelf(hbm hbMessage) {
-	channel := getChannelFromMsg(hbm.msgType, pid)
+	channel := getChannelFromMsg(hbm.msgType, hbm.sender)
 	channel <- hbm.msg
 }
 
@@ -122,7 +123,9 @@ func sendMessages(to int, hbm hbMessage) {
 		reply, _ := clients[to].Recv(0)
 		fmt.Println("[sendMessages] Received ", reply)
 	} else {
+		fmt.Println("[sendMessages] Sending message ", hbm.msg, " to self.")
 		handleMessageToSelf(hbm)
+		fmt.Println("[sendMessages] Sent message ", hbm.msg, " to self.")
 	}
 }
 
@@ -181,9 +184,9 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, rece
 	rbc_outputs := make([](chan string), hb.N)
 
 	for j := 0; j < hb.N; j++ {
-		coin_recvs[j] = make(chan string, hb.N)
-		aba_recvs[j] = make(chan string, hb.N)
-		rbc_recvs[j] = make(chan string, hb.N)
+		coin_recvs[j] = make(chan string, 100)
+		aba_recvs[j] = make(chan string, 100)
+		rbc_recvs[j] = make(chan string, 100)
 
 		aba_inputs[j] = make(chan int, 1)
 		aba_outputs[j] = make(chan int, 1)
