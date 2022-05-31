@@ -471,6 +471,10 @@ func main() {
 
 	// time.Sleep(10 * time.Second)
 
+	if err := os.Truncate(files[pid], 0); err != nil {
+		log.Printf("Failed to truncate: %v", err)
+	}
+
 	for i := 0; i < N; i++ {
 		fileLocks[i] = fslock.New(files[i])
 		f, err := os.OpenFile(files[i], os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0666)

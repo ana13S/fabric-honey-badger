@@ -16,7 +16,6 @@ func Test_generateKeys(t *testing.T) {
 		log.Fatal("Could not create keys.txt")
 	}
 
-	sharesJson, _ := json.Marshal(shares)
 	metaJson, _ := json.Marshal(meta)
 
 	for _, s := range shares {
@@ -24,8 +23,6 @@ func Test_generateKeys(t *testing.T) {
 		f.Write(share)
 		f.WriteString(string('\n'))
 	}
-	f.Write(sharesJson)
-	f.WriteString(string('\n'))
 
 	f.Write(metaJson)
 	f.WriteString(string('\n'))

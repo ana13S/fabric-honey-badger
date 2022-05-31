@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	// "fmt"
+	"fmt"
 	tcrsa "github.com/niclabs/tcrsa"
 	"strconv"
 	"threshsig"
@@ -34,34 +35,58 @@ func sig_msg_parse(msg string) tcrsa.SigShare {
 	return new_sig_msg
 }
 
+func broadcast_loop(msg hbMessage, killChan chan string) {
+	for {
+		select {
+		case val := <-killChan:
+			fmt.Println("[commoncoin] Finish broadcast because we received enough signatures" + val)
+			return
+		default:
+			fmt.Println("Keep broadcasting signature")
+			broadcast(msg)
+		}
+	}
+}
+
 // keyMeta holds public key
 // keyShare holds values for specific node(including something similar to secret key)
 func shared_coin(sid string, pid int, N int, f int, leader int, meta tcrsa.KeyMeta, keyShare tcrsa.KeyShare,
 	receive chan string, r int) int {
-	if int(meta.L) != N || int(meta.L) != f+1 { // assert PK.l == N   assert PK.k == f+1
-		panic("F and N not set correctly")
-	}
 
-	// Need to get r from receive
 	docHash, docPK := threshsig.HashMessage(sid+strconv.Itoa(r), &meta) // h = PK.hash_message(str((sid, r)))
 
 	// Calculate signature and broadcast to others
 	sigShare := threshsig.Sign(keyShare, docPK, &meta)
-	broadcast(sig_msg_stringify(leader, sigShare))
+	fmt.Println("[commoncoin] Generated signature. Need to broadcast")
+	killChan := make(chan string, 10)
 
-	// Wait for f+1 keyshares
-	meta.L = uint16(f + 1) // Need f +1 keyshares to verify signature
-	shares := make([]tcrsa.SigShare, meta.L)
-	shareList := make(tcrsa.SigShareList, meta.L)
-	for i := 0; i < f+1; i++ {
+	// Wait for K keyshares (N - f)
+	shares := make([]tcrsa.SigShare, meta.K)
+	shareList := make(tcrsa.SigShareList, meta.K)
+	shareList[0] = &sigShare
+	shareMap := make(map[uint16]bool)
+
+	// Keep broadcasting till we get enough sigShares
+	go broadcast_loop(sig_msg_stringify(leader, sigShare), killChan)
+
+	for i := 1; i < int(meta.K); {
 		msg := <-receive
 		shares[i] = sig_msg_parse(msg)
-		shareList[i] = &shares[i]
+		received := shareMap[shares[i].Id]
+		if !received {
+			shareMap[shares[i].Id] = true
+			shareList[i] = &shares[i]
+			i++
+			fmt.Println("[commoncoin] Received one signature share")
+		}
 	}
+
+	killChan <- "Done"
 
 	// After receiving signatures from others
 	sig := threshsig.CombineSignatures(docPK, shareList, &meta)
 	threshsig.Verify(&meta, docHash, sig)
+	fmt.Println("[commoncoin] Success!! Signature list verified")
 	bit := int(sig[0]) % 2
 	return bit
 
