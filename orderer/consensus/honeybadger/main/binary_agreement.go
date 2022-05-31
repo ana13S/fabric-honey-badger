@@ -67,6 +67,11 @@ func construct_message(prefix string, round int, value int, sender int, receiver
 	return m
 }
 
+func binary_broadcast(msg hbMessage) {
+	fmt.Println("Binary is trying to broadcast ", msg)
+	broadcast(msg)
+}
+
 func get_count(msgs_received []message, r int, value int, prefix string) int {
 	seen_sender := make(map[int]bool)
 	count := 0
@@ -128,8 +133,7 @@ func binaryagreement(
 	msgs_received := make([]message, 0)
 	for {
 		fmt.Println("In round " + strconv.Itoa(r))
-
-		broadcast(construct_aba_message(leader, construct_message("bval", r, est, pid, -1)))
+		binary_broadcast(construct_aba_message(leader, construct_message("bval", r, est, pid, -1)))
 		// Count your own message/vote too.
 		msgs_received = append(msgs_received, message{prefix: "bval", round: r, value: est, sender: pid, receiver: pid})
 
@@ -138,7 +142,7 @@ func binaryagreement(
 		b_value := -1 // will be the result I vote for in this round
 		for {
 			msg := <-receive
-			fmt.Println("Parsing message " + msg)
+			fmt.Println("Binary received message " + msg)
 			msg_object := parse_message(msg)
 
 			// Check that evil actors don't send two conflicting aux messages. If so ignore the message.
@@ -161,7 +165,7 @@ func binaryagreement(
 				count := get_count(msgs_received, r, msg_object.value, "bval")
 				if count >= f+1 {
 					fmt.Println("Has received more than f+1 bval messages with value " + strconv.Itoa(msg_object.value) + " at round " + strconv.Itoa(r))
-					broadcast(construct_aba_message(leader, construct_message("bval", r, msg_object.value, pid, -1)))
+					binary_broadcast(construct_aba_message(leader, construct_message("bval", r, msg_object.value, pid, -1)))
 					// Count your own message/vote too.
 					msgs_received = append(msgs_received, message{prefix: "bval", round: r, value: msg_object.value, sender: pid, receiver: pid})
 				}
@@ -187,11 +191,12 @@ func binaryagreement(
 			if b_value == -1 {
 				b_value = bin_values[0]
 				fmt.Println("b set to be " + strconv.Itoa(b_value))
-				broadcast(construct_aba_message(leader, construct_message("aux", r, b_value, pid, -1)))
+				binary_broadcast(construct_aba_message(leader, construct_message("aux", r, b_value, pid, -1)))
 				// Count your own message/vote too.
 				msgs_received = append(msgs_received, message{prefix: "aux", round: r, value: b_value, sender: pid, receiver: pid})
 			}
 
+			binary_broadcast(construct_aba_message(leader, construct_message("aux", r, b_value, pid, -1)))
 			count_0 := get_count(msgs_received, r, 0, "aux")
 			count_1 := get_count(msgs_received, r, 1, "aux")
 
@@ -237,6 +242,7 @@ func binaryagreement(
 				est = b_value
 				if b_value == coin_val {
 					decide <- b_value
+					return
 				}
 			} else {
 				fmt.Println("vals != {b}")
