@@ -298,6 +298,10 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, rece
 
 	rbc_values := make([]chan string, hb.N)
 
+	for i := 0; i < hb.N; i++ {
+		rbc_values[i] = make(chan string, 1)
+	}
+
 	fmt.Println("[run_round] Spawning common subset")
 	go commonsubset(hb.pid, hb.N, hb.f, rbc_outputs, aba_inputs, aba_outputs, rbc_values)
 
@@ -469,7 +473,7 @@ func main() {
 			splitMsg := strings.Split(message, "_")
 			msgType := splitMsg[0]
 			sender, _ := strconv.Atoi(splitMsg[1])
-			msg := splitMsg[2]
+			msg := strings.Join(splitMsg[2:], "_")
 
 			if msgType != "IGNORE" {
 				channel := getChannelFromMsg(msgType, sender)

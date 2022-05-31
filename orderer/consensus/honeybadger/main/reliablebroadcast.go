@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 
-	//"fmt"
+	"fmt"
 
 	"encoding/json"
 	"log"
@@ -301,7 +301,9 @@ func reliablebroadcast(
 			if headcount+1 >= OutputThreshold && echoCount >= K {
 				log.Println("REACHED Gate ECHO!!!!")
 				log.Println("Accumulated stripes:", stripes[string(roothash)])
+				fmt.Println("[reliablebroadcast] Putting roothash ", roothash, " into retchan ", retChan)
 				retChan <- decode_output(roothash)
+				fmt.Println("[reliablebroadcast] Successfully put roothash ", roothash, " into retchan ", retChan)
 				break
 			}
 

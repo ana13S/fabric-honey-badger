@@ -28,6 +28,7 @@ type message struct {
 // The reason we need message_string is because it is easier to communicate with other processes through strings.
 // parse message_string to message object.
 func parse_message(message_string string) message {
+	fmt.Println("[binary_agreement, parse_message] message_string: ", message_string)
 	split := strings.Split(message_string, "_")
 	round, _ := strconv.ParseInt(split[1], 10, 0)
 	value, _ := strconv.ParseInt(split[2], 10, 0)

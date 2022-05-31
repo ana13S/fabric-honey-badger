@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strconv"
 	"sync"
 	// "testing"
@@ -39,7 +40,11 @@ func commonsubset(pid int, N int, f int, rbc_out []chan string, aba_in []chan in
 			// otherwise run
 			default:
 				// Receive output from reliable broadcast
-				rbc_values[j] <- (<-rbc_out[j])
+				fmt.Println("[commonsubset] Waiting for rbc_out[", j, "]", rbc_out[j], " to return some value.")
+				val := <-rbc_out[j]
+				fmt.Println("[commonsubset] Read value from rbc_out[", j, "]", rbc_out[j], " val: ", val)
+				rbc_values[j] <- val
+				fmt.Println("[commonsubset] Successfully put value in rbc_values[", j, "]", rbc_out[j])
 
 				if !aba_inputted[j] {
 
