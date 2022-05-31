@@ -242,6 +242,7 @@ func binaryagreement(
 				est = b_value
 				if b_value == coin_val {
 					decide <- b_value
+					fmt.Println("Binary agreement agrees on ", b_value)
 					return
 				}
 			} else {
