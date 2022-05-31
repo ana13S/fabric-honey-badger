@@ -19,9 +19,15 @@ func Test_generateKeys(t *testing.T) {
 	sharesJson, _ := json.Marshal(shares)
 	metaJson, _ := json.Marshal(meta)
 
-	f.Write(metaJson)
-	f.WriteString(string('\n'))
+	for _, s := range shares {
+		share, _ := json.Marshal(s)
+		f.Write(share)
+		f.WriteString(string('\n'))
+	}
 	f.Write(sharesJson)
+	f.WriteString(string('\n'))
+
+	f.Write(metaJson)
 	f.WriteString(string('\n'))
 
 	defer f.Close()

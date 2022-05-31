@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"github.com/hpcloud/tail"
 	"github.com/juju/fslock"
@@ -409,7 +410,34 @@ func main() {
 
 	fmt.Println("[main] buffer: ", transaction_buffer, " N: ", N, " f: ", f, " B: ", B)
 
-	shares, meta := threshsig.Dealer(4, 3, 2048)
+	var shares tcrsa.KeyShareList
+	shares = make(tcrsa.KeyShareList, N)
+	var meta *tcrsa.KeyMeta
+	meta = &tcrsa.KeyMeta{}
+	if _, err := os.Stat("./keys.txt"); err == nil {
+		fmt.Println("[honeybadger] Loading keys from file")
+		f, _ := os.Open("./keys.txt")
+		defer f.Close()
+
+		scanner := bufio.NewScanner(f)
+
+		i := 0
+		for scanner.Scan() {
+			if i < N {
+				json.Unmarshal([]byte(scanner.Text()), &shares[i])
+			} else {
+				err := json.Unmarshal([]byte(scanner.Text()), meta)
+				if err != nil {
+					fmt.Println("Loading public key error:", err)
+				}
+				continue
+			}
+			i++
+		}
+
+	} else if err != nil {
+		shares, meta = threshsig.Dealer(4, 3, 2048)
+	}
 
 	hb := honeybadger{
 		sid:                "sidA",
