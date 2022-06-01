@@ -206,6 +206,7 @@ func sendMessages(to int, hbm hbMessage) {
 	fmt.Println("[sendMessages] Message sent. Releasing the lock")
 	// release the lock
 	// fileLocks[to].Unlock()
+	time.Sleep(1 * time.Second)
 }
 
 func send(to int, msg hbMessage) {
@@ -264,11 +265,11 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, rece
 
 	for j := 0; j < hb.N; j++ {
 		coin_recvs[j] = make(chan string, 100)
-		aba_recvs[j] = make(chan string, 100)
+		aba_recvs[j] = make(chan string, 10000)
 		rbc_recvs[j] = make(chan string, 100)
 
-		aba_inputs[j] = make(chan int, 1)
-		aba_outputs[j] = make(chan int, 1)
+		aba_inputs[j] = make(chan int, 10000)
+		aba_outputs[j] = make(chan int, 10000)
 		rbc_outputs[j] = make(chan string, 1)
 	}
 
