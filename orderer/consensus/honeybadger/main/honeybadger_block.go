@@ -32,6 +32,8 @@ func honeybadgerBlock(pid int, N int, f int, propose_in <-chan string, acs_in ch
 
 	// Broadcast inputs are of the form (tenc(key), enc(key, transactions))
 
+	fmt.Println("[honeybadger_block] Entering now")
+
 	prop := <-propose_in
 
 	acs_in <- prop
@@ -56,5 +58,19 @@ func honeybadgerBlock(pid int, N int, f int, propose_in <-chan string, acs_in ch
 		os.Exit(1)
 	}
 
-	hb_block <- vall
+	var committed_txns []string
+	txn_map := make(map[string]bool)
+	for _, txn := range vall {
+		if txn != "FAILURE" {
+			_, ok := txn_map[txn]
+			if !ok {
+				committed_txns = append(committed_txns, txn)
+				txn_map[txn] = true
+			}
+		}
+	}
+
+	fmt.Println("[honeybadger_block] Committed Transactions", committed_txns)
+
+	hb_block <- committed_txns
 }

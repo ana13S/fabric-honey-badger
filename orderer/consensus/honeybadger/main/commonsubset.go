@@ -28,46 +28,35 @@ func commonsubset(pid int, N int, f int, rbc_out []chan string, aba_in []chan in
 		recv_rbc_joinChans[i] = make(chan string)
 	}
 
-	recv_rbc := func(j int, killChan <-chan string, joinChan chan<- string) {
+	recv_rbc := func(j int) {
+		// Receive output from reliable broadcast
+		fmt.Println("[commonsubset] Waiting for rbc_out[", j, "]", rbc_out[j], " to return some value.")
+		val := <-rbc_out[j]
+		fmt.Println("[commonsubset] Read value from rbc_out[", j, "]", rbc_out[j], " val: ", val)
+		rbc_values[j] <- val
+		fmt.Println("[commonsubset] Successfully put value in rbc_values[", j, "]", rbc_out[j])
 
-		for {
-			select {
+		if !aba_inputted[j] {
 
-			// listen to killChan for kill signal
-			case <-killChan:
-				return
+			aba_inputted[j] = true
 
-			// otherwise run
-			default:
-				// Receive output from reliable broadcast
-				fmt.Println("[commonsubset] Waiting for rbc_out[", j, "]", rbc_out[j], " to return some value.")
-				val := <-rbc_out[j]
-				fmt.Println("[commonsubset] Read value from rbc_out[", j, "]", rbc_out[j], " val: ", val)
-				rbc_values[j] <- val
-				fmt.Println("[commonsubset] Successfully put value in rbc_values[", j, "]", rbc_out[j])
-
-				if !aba_inputted[j] {
-
-					aba_inputted[j] = true
-
-					aba_in[j] <- 1
-				}
-
-				// output "finished" to joinChan, can wait for joinChan as a blocker
-				joinChan <- "finished"
-			}
+			aba_in[j] <- 1
 		}
+		fmt.Println("[commonsubset] Returning from recv_rbc[", j, "]")
+
 	}
 
 	// spawn recv_rbc goroutines
 	for i := 0; i < N; i++ {
-		go recv_rbc(i, recv_rbc_killChans[i], recv_rbc_joinChans[i])
+		go recv_rbc(i)
 	}
 
 	recv_aba := func(j int, wg *sync.WaitGroup) {
 		defer wg.Done()
 
 		aba_values[j] = <-aba_out[j]
+
+		fmt.Println("[commonsubset] Received value from aba_out[", j, "] :", aba_values[j])
 
 		// count number of non-zero positions in aba_values
 		arrSum := 0
@@ -113,20 +102,22 @@ func commonsubset(pid int, N int, f int, rbc_out []chan string, aba_in []chan in
 		if aba_values[j] == 1 {
 
 			// wait for jth recv_rbc goroutine to finish
-			<-recv_rbc_joinChans[j]
+			// <-recv_rbc_joinChans[j]
 
 			// nonetype error handling
 			// Check value in rbc
-			val := <-rbc_values[j]
-			if val == "" {
-				panic("Expected val to not be empty")
-			}
+			// val := <-rbc_values[j]
+			// if val == "" {
+			// 	panic("Expected val to not be empty")
+			// }
+			fmt.Println("[commonsubset] aba_values[", j, "] is 1")
 		} else {
 
-			recv_rbc_killChans[j] <- "kill"
 			rbc_values[j] <- ""
 		}
 	}
+
+	fmt.Println("[commonsubset] Finished")
 
 	// Return values can be received through rbc_values channels
 }

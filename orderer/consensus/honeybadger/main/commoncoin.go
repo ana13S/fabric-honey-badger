@@ -7,6 +7,7 @@ import (
 	"fmt"
 	tcrsa "github.com/niclabs/tcrsa"
 	"strconv"
+	"strings"
 	"threshsig"
 )
 
@@ -17,7 +18,7 @@ func hash(msg string) []byte {
 	return h.Sum(nil)
 }
 
-func sig_msg_stringify(pid int, msg tcrsa.SigShare) hbMessage {
+func sig_msg_stringify(pid int, r int, msg tcrsa.SigShare) hbMessage {
 	marsh, _ := json.Marshal(msg)
 	message := string(marsh)
 	msgType := "COIN"
@@ -25,7 +26,7 @@ func sig_msg_stringify(pid int, msg tcrsa.SigShare) hbMessage {
 	return hbMessage{
 		msgType: msgType,
 		sender:  sender,
-		msg:     message,
+		msg:     string(r) + "_" + message,
 	}
 }
 
@@ -58,22 +59,28 @@ func shared_coin(sid string, pid int, N int, f int, leader int, meta tcrsa.KeyMe
 	// Calculate signature and broadcast to others
 	sigShare := threshsig.Sign(keyShare, docPK, &meta)
 	fmt.Println("[commoncoin] Generated signature. Need to broadcast")
-	killChan := make(chan string, 10)
+	// killChan := make(chan string, 10)
 
 	// Wait for K keyshares (N - f)
 	shares := make([]tcrsa.SigShare, meta.K)
 	shareList := make(tcrsa.SigShareList, meta.K)
 	shareList[0] = &sigShare
 	shareMap := make(map[uint16]bool)
+	shareMap[sigShare.Id] = true
 
 	// Keep broadcasting till we get enough sigShares
-	go broadcast_loop(sig_msg_stringify(leader, sigShare), killChan)
+	broadcast(sig_msg_stringify(leader, r, sigShare))
 
 	for i := 1; i < int(meta.K); {
 		msg := <-receive
-		shares[i] = sig_msg_parse(msg)
-		received := shareMap[shares[i].Id]
-		if !received {
+		received := strings.Split(msg, "_") // Get round of sigShare
+		if received[0] != string(r) {
+			fmt.Println("[commoncoin] In round ", r, ", Received signature share from node in wrong round, ", received[0])
+			continue
+		}
+		shares[i] = sig_msg_parse(received[1])
+		_, ok := shareMap[shares[i].Id]
+		if !ok {
 			shareMap[shares[i].Id] = true
 			shareList[i] = &shares[i]
 			i++
@@ -81,7 +88,7 @@ func shared_coin(sid string, pid int, N int, f int, leader int, meta tcrsa.KeyMe
 		}
 	}
 
-	killChan <- "Done"
+	fmt.Println("[commoncoin] Received signature share list ", shareList[0].Id, shareList[1].Id, shareList[2].Id)
 
 	// After receiving signatures from others
 	sig := threshsig.CombineSignatures(docPK, shareList, &meta)
