@@ -22,11 +22,11 @@ func sig_msg_stringify(pid int, r int, msg tcrsa.SigShare) hbMessage {
 	marsh, _ := json.Marshal(msg)
 	message := string(marsh)
 	msgType := "COIN"
-	sender := pid
+	channel := pid
 	return hbMessage{
 		msgType: msgType,
-		sender:  sender,
-		msg:     string(r) + "_" + message,
+		channel: channel,
+		msg:     strconv.Itoa(r) + "_" + message,
 	}
 }
 
@@ -51,7 +51,7 @@ func broadcast_loop(msg hbMessage, killChan chan string) {
 
 // keyMeta holds public key
 // keyShare holds values for specific node(including something similar to secret key)
-func shared_coin(sid string, pid int, N int, f int, leader int, meta tcrsa.KeyMeta, keyShare tcrsa.KeyShare,
+func shared_coin(sid string, pid int, N int, f int, channel int, meta tcrsa.KeyMeta, keyShare tcrsa.KeyShare,
 	receive chan string, r int) int {
 
 	docHash, docPK := threshsig.HashMessage(sid+strconv.Itoa(r), &meta) // h = PK.hash_message(str((sid, r)))
@@ -69,12 +69,12 @@ func shared_coin(sid string, pid int, N int, f int, leader int, meta tcrsa.KeyMe
 	shareMap[sigShare.Id] = true
 
 	// Keep broadcasting till we get enough sigShares
-	broadcast(sig_msg_stringify(leader, r, sigShare))
+	broadcast(sig_msg_stringify(channel, r, sigShare))
 
 	for i := 1; i < int(meta.K); {
 		msg := <-receive
 		received := strings.Split(msg, "_") // Get round of sigShare
-		if received[0] != string(r) {
+		if received[0] != strconv.Itoa(r) {
 			fmt.Println("[commoncoin] In round ", r, ", Received signature share from node in wrong round, ", received[0])
 			continue
 		}

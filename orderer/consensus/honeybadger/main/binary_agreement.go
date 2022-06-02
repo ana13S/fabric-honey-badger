@@ -48,10 +48,10 @@ func parse_message(message_string string) message {
 func construct_aba_message(pid int, m message) hbMessage {
 	msg := m.prefix + "_" + strconv.Itoa(m.round) + "_" + strconv.Itoa(m.value) + "_" + strconv.Itoa(m.sender) + "_" + strconv.Itoa(m.receiver)
 	msgType := "ABA"
-	sender := pid
+	channel := pid
 	return hbMessage{
 		msgType: msgType,
-		sender:  sender,
+		channel: channel,
 		msg:     msg,
 	}
 }
@@ -66,8 +66,6 @@ func construct_message(prefix string, round int, value int, sender int, receiver
 	}
 	return m
 }
-
-
 
 func binary_broadcast(sid string, msg hbMessage, sent_messages map[hbMessage]bool) {
 	if _, ok := sent_messages[msg]; !ok {
@@ -119,7 +117,7 @@ func binaryagreement(
 	pid int,
 	N int,
 	f int,
-	leader int,
+	channel int,
 	input chan int,
 	decide chan int,
 	// broadcast func(string),
@@ -139,7 +137,7 @@ func binaryagreement(
 	sent_messages := make(map[hbMessage]bool)
 	for {
 		fmt.Println("In round " + strconv.Itoa(r))
-		binary_broadcast(sid, construct_aba_message(leader, construct_message("bval", r, est, pid, -1)), sent_messages)
+		binary_broadcast(sid, construct_aba_message(channel, construct_message("bval", r, est, pid, -1)), sent_messages)
 		// Count your own message/vote too.
 		msgs_received = append(msgs_received, message{prefix: "bval", round: r, value: est, sender: pid, receiver: pid})
 
@@ -148,7 +146,7 @@ func binaryagreement(
 		b_value := -1 // will be the result I vote for in this round
 		for {
 			msg := <-receive
-			fmt.Println(sid, " binary received message " + msg)
+			fmt.Println(sid, " binary received message "+msg)
 			msg_object := parse_message(msg)
 
 			// Check that evil actors don't send two conflicting aux messages. If so ignore the message.
@@ -171,13 +169,13 @@ func binaryagreement(
 				count := get_count(msgs_received, r, msg_object.value, "bval")
 				if count >= f+1 {
 					fmt.Println("Has received more than f+1 bval messages with value " + strconv.Itoa(msg_object.value) + " at round " + strconv.Itoa(r))
-					binary_broadcast(sid, construct_aba_message(leader, construct_message("bval", r, msg_object.value, pid, -1)), sent_messages)
+					binary_broadcast(sid, construct_aba_message(channel, construct_message("bval", r, msg_object.value, pid, -1)), sent_messages)
 					// Count your own message/vote too.
 					msgs_received = append(msgs_received, message{prefix: "bval", round: r, value: msg_object.value, sender: pid, receiver: pid})
 				}
 				count = get_count(msgs_received, r, msg_object.value, "bval")
 				if count >= 2*f+1 {
-					fmt.Println(sid, " Has received more than 2f+1 bval messages with value " + strconv.Itoa(msg_object.value) + " at round " + strconv.Itoa(r))
+					fmt.Println(sid, " Has received more than 2f+1 bval messages with value "+strconv.Itoa(msg_object.value)+" at round "+strconv.Itoa(r))
 					in_bin_values := false
 					for _, v := range bin_values {
 						if v == msg_object.value {
@@ -185,7 +183,7 @@ func binaryagreement(
 						}
 					}
 					if !in_bin_values {
-						fmt.Println(sid, " Value " + strconv.Itoa(msg_object.value) + " not yet in bin_values. Adding now.")
+						fmt.Println(sid, " Value "+strconv.Itoa(msg_object.value)+" not yet in bin_values. Adding now.")
 						bin_values = append(bin_values, msg_object.value)
 					}
 				}
@@ -196,13 +194,13 @@ func binaryagreement(
 			}
 			if b_value == -1 {
 				b_value = bin_values[0]
-				fmt.Println(sid, " b set to be " + strconv.Itoa(b_value))
-				binary_broadcast(sid, construct_aba_message(leader, construct_message("aux", r, b_value, pid, -1)), sent_messages)
+				fmt.Println(sid, " b set to be "+strconv.Itoa(b_value))
+				binary_broadcast(sid, construct_aba_message(channel, construct_message("aux", r, b_value, pid, -1)), sent_messages)
 				// Count your own message/vote too.
 				msgs_received = append(msgs_received, message{prefix: "aux", round: r, value: b_value, sender: pid, receiver: pid})
 			}
 
-			binary_broadcast(sid, construct_aba_message(leader, construct_message("aux", r, b_value, pid, -1)), sent_messages)
+			binary_broadcast(sid, construct_aba_message(channel, construct_message("aux", r, b_value, pid, -1)), sent_messages)
 			count_0 := get_count(msgs_received, r, 0, "aux")
 			count_1 := get_count(msgs_received, r, 1, "aux")
 
@@ -237,7 +235,7 @@ func binaryagreement(
 				coin_pid,
 				coin_N,
 				coin_f,
-				leader,
+				channel,
 				coin_meta,
 				coin_keyShare,
 				// coin_broadcast,

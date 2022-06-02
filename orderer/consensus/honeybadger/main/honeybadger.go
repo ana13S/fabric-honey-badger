@@ -51,7 +51,7 @@ type honeybadger struct {
 
 type hbMessage struct {
 	msgType string
-	sender  int
+	channel int
 	msg     string
 }
 
@@ -101,21 +101,21 @@ func remove(txns []string, txn string) []string {
 
 func getChannelFromMsg(
 	msgType string,
-	sender int,
+	channel int,
 ) chan string {
 	if msgType == "ABA" {
-		return aba_recvs[sender]
+		return aba_recvs[channel]
 	} else if msgType == "COIN" {
-		return coin_recvs[sender]
+		return coin_recvs[channel]
 	} else if msgType == "RBC" {
-		return rbc_recvs[sender]
+		return rbc_recvs[channel]
 	} else {
 		panic("Unknown message type")
 	}
 }
 
 func handleMessageToSelf(hbm hbMessage) {
-	channel := getChannelFromMsg(hbm.msgType, hbm.sender)
+	channel := getChannelFromMsg(hbm.msgType, hbm.channel)
 	channel <- hbm.msg
 }
 
@@ -123,7 +123,7 @@ func handleMessageToSelf(hbm hbMessage) {
 // 	//Client port that sends messages
 // 	// socket.Connect("tcp://localhost:" + port)
 // 	if pid != to {
-// 		var finalMessage string = hbm.msgType + "_" + strconv.Itoa(hbm.sender) + "_" + hbm.msg
+// 		var finalMessage string = hbm.msgType + "_" + strconv.Itoa(hbm.channel) + "_" + hbm.msg
 // 		fmt.Println("[sendMessages] Sending message ", finalMessage, " to ", to)
 // 		clients[to].Send(finalMessage, 0)
 
@@ -159,11 +159,11 @@ func broadcast_receiver(pid int) {
 			// Parse the message
 			splitMsg := strings.Split(message, "_")
 			msgType := splitMsg[0]
-			sender, _ := strconv.Atoi(splitMsg[1])
+			channel, _ := strconv.Atoi(splitMsg[1])
 			msg := splitMsg[2]
 
 			if msgType != "IGNORE" {
-				channel := getChannelFromMsg(msgType, sender)
+				channel := getChannelFromMsg(msgType, channel)
 
 				// Put message in apt channel
 				channel <- msg
@@ -185,7 +185,7 @@ func broadcast_receiver(pid int) {
 }
 
 func sendMessages(to int, hbm hbMessage) {
-	var finalMessage string = hbm.msgType + "_" + strconv.Itoa(hbm.sender) + "_" + hbm.msg + "\n"
+	var finalMessage string = hbm.msgType + "_" + strconv.Itoa(hbm.channel) + "_" + hbm.msg
 	fmt.Println("[sendMessages] Sending message ", finalMessage, " to ", to)
 	// for {
 	// 	lockErr := fileLocks[to].TryLock()
@@ -197,13 +197,13 @@ func sendMessages(to int, hbm hbMessage) {
 	// 	time.Sleep(time.Second)
 	// }
 
-	_, err2 := writeFileHandlers[to].WriteString(finalMessage)
+	_, err2 := writeFileHandlers[to].WriteString(finalMessage + "\n")
 
 	if err2 != nil {
 		log.Fatal(err2)
 	}
 
-	fmt.Println("[sendMessages] Message sent. Releasing the lock")
+	fmt.Println("[sendMessages] Message sent: ", finalMessage, " to ", to)
 	// release the lock
 	// fileLocks[to].Unlock()
 	time.Sleep(1 * time.Second)
@@ -231,11 +231,11 @@ func broadcast(hbm hbMessage) {
 // 		// Parse the message
 // 		splitMsg := strings.Split(message, "_")
 // 		msgType := splitMsg[0]
-// 		sender, _ := strconv.Atoi(splitMsg[1])
+// 		channel, _ := strconv.Atoi(splitMsg[1])
 // 		msg := splitMsg[2]
 
 // 		if msgType != "IGNORE" {
-// 			channel := getChannelFromMsg(msgType, sender)
+// 			channel := getChannelFromMsg(msgType, channel)
 
 // 			// Put message in apt channel
 // 			channel <- msg
@@ -246,7 +246,7 @@ func broadcast(hbm hbMessage) {
 
 // 		// Send reply back to client
 // 		fmt.Println("[broadcast_receiver] Sending Ignore message as reply")
-// 		s.Send("IGNORE_"+strconv.Itoa(pid)+"_"+strconv.Itoa(sender), 0)
+// 		s.Send("IGNORE_"+strconv.Itoa(pid)+"_"+strconv.Itoa(channel), 0)
 // 	}
 // }
 
@@ -255,21 +255,13 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, rece
 
 	sid := hb.sid + ":" + strconv.Itoa(r)
 
-	coin_recvs = make([](chan string), hb.N)
-	aba_recvs = make([](chan string), hb.N)
-	rbc_recvs = make([](chan string), hb.N)
-
 	aba_inputs := make([](chan int), hb.N)
 	aba_outputs := make([](chan int), hb.N)
 	rbc_outputs := make([](chan string), hb.N)
 
 	for j := 0; j < hb.N; j++ {
-		coin_recvs[j] = make(chan string, 100)
-		aba_recvs[j] = make(chan string, 10000)
-		rbc_recvs[j] = make(chan string, 100)
-
-		aba_inputs[j] = make(chan int, 10000)
-		aba_outputs[j] = make(chan int, 10000)
+		aba_inputs[j] = make(chan int, 1)
+		aba_outputs[j] = make(chan int, 1)
 		rbc_outputs[j] = make(chan string, 1)
 	}
 
@@ -322,8 +314,19 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, rece
 func (hb *honeybadger) run(receiver *zmq.Socket) {
 	fmt.Println("Starting honeybadger")
 	var new_txns []string
-	var hb_block chan []string
+	hb_block := make(chan []string, 1)
 	var proposed []string
+
+	coin_recvs = make([](chan string), hb.N)
+	aba_recvs = make([](chan string), hb.N)
+	rbc_recvs = make([](chan string), hb.N)
+
+	for j := 0; j < hb.N; j++ {
+		coin_recvs[j] = make(chan string, 100)
+		aba_recvs[j] = make(chan string, 100)
+		rbc_recvs[j] = make(chan string, 100)
+	}
+
 	for round := 0; round < 1; round++ {
 		proposed = random_selection(hb.transaction_buffer, hb.B, hb.N)
 		fmt.Println("Proposal for round ", round, ": ", proposed)
@@ -505,11 +508,11 @@ func main() {
 			// Parse the message
 			splitMsg := strings.Split(message, "_")
 			msgType := splitMsg[0]
-			sender, _ := strconv.Atoi(splitMsg[1])
+			channel, _ := strconv.Atoi(splitMsg[1])
 			msg := strings.Join(splitMsg[2:], "_")
 
 			if msgType != "IGNORE" {
-				channel := getChannelFromMsg(msgType, sender)
+				channel := getChannelFromMsg(msgType, channel)
 
 				// Put message in apt channel
 				channel <- msg

@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"encoding/json"
-	"log"
+	// "fmt"
 
 	//"strings"
 	"time"
@@ -28,7 +28,7 @@ func encode(K int, N int, m string) [][]byte {
 		}
 	}
 
-	log.Println("Padded String, to be encoded:", m, ".")
+	fmt.Println("Padded String, to be encoded:", m, ".")
 
 	// convert m to byte slice
 	mByteSlice := []byte(m)
@@ -60,8 +60,8 @@ func encode(K int, N int, m string) [][]byte {
 // clone of HBFT decode
 func decode(K int, N int, data [][]byte) string {
 
-	log.Println("REACHED INNER DECODE")
-	log.Println("Data to reconstruct:", data)
+	fmt.Println("REACHED INNER DECODE")
+	fmt.Println("Data to reconstruct:", data)
 	// localize data
 	localData := data
 
@@ -78,7 +78,7 @@ func decode(K int, N int, data [][]byte) string {
 		}
 
 	}
-	log.Println("Decoding finished:", msgString)
+	fmt.Println("Decoding finished:", msgString)
 	return msgString
 
 }
@@ -114,10 +114,10 @@ func rb_msg_stringify(leader int, msg Rb_msg) hbMessage {
 	marsh, _ := json.Marshal(msg)
 	message := string(marsh)
 	msgType := "RBC"
-	sender := leader
+	channel := leader
 	return hbMessage{
 		msgType: msgType,
-		sender:  sender,
+		channel: channel,
 		msg:     message,
 	}
 }
@@ -151,7 +151,7 @@ func reliablebroadcast(
 
 		// stripes is [][]byte
 		codeword := encode(K, N, m)
-		//log.Println("Encoded Codeword, from leader:", codeword)
+		//fmt.Println("Encoded Codeword, from leader:", codeword)
 
 		// use list hash
 		hasher := sha256.New()
@@ -220,18 +220,18 @@ func reliablebroadcast(
 
 		// Verify received message
 		if !hashVerify(branch, recipient, stripe) {
-			log.Println("Failed to validate message!")
+			fmt.Println("Failed to validate message!")
 			continue
 		} else {
-			log.Println("Message validated!")
+			fmt.Println("Message validated!")
 		}
 
 		if recvd_msg.MsgType == "VAL" {
 
-			//log.Println("Received val for roothash", roothash)
+			//fmt.Println("Received val for roothash", roothash)
 
 			if sender != leader {
-				log.Println("VAL message from other than leader:", sender)
+				fmt.Println("VAL message from other than leader:", sender)
 			}
 
 			// update records
@@ -259,7 +259,7 @@ func reliablebroadcast(
 
 		} else if recvd_msg.MsgType == "ECHO" {
 
-			//log.Println("Received echo for roothash", roothash)
+			//fmt.Println("Received echo for roothash", roothash)
 
 			// update records
 			if len(stripes[string(roothash)]) == 0 {
@@ -267,14 +267,14 @@ func reliablebroadcast(
 			}
 			stripes[string(roothash)][recipient] = stripe
 
-			log.Println(echoCounter)
-			log.Println(sid, pid, N, leader)
+			fmt.Println(echoCounter)
+			fmt.Println(sid, pid, N, leader)
 			echoCounter[string(roothash)] += 1
-			//log.Println("+++++++++++++++++++++++++")
-			//log.Println("+++++++++++++++++++++++++")
-			//log.Println("Roothash", roothash, "has current echo count", echoCounter[string(roothash)])
-			//log.Println("+++++++++++++++++++++++++")
-			//log.Println("+++++++++++++++++++++++++")
+			//fmt.Println("+++++++++++++++++++++++++")
+			//fmt.Println("+++++++++++++++++++++++++")
+			//fmt.Println("Roothash", roothash, "has current echo count", echoCounter[string(roothash)])
+			//fmt.Println("+++++++++++++++++++++++++")
+			//fmt.Println("+++++++++++++++++++++++++")
 
 			if echoCounter[string(roothash)] >= EchoThreshold && !readySent {
 				readySent = true
@@ -297,10 +297,10 @@ func reliablebroadcast(
 
 			headcount := ready[string(roothash)]
 			echoCount := echoCounter[string(roothash)]
-			log.Println("Ready+1:", ready[string(roothash)]+1, "-- Echo:", echoCounter[string(roothash)])
+			fmt.Println("Ready+1:", ready[string(roothash)]+1, "-- Echo:", echoCounter[string(roothash)])
 			if headcount+1 >= OutputThreshold && echoCount >= K {
-				log.Println("REACHED Gate ECHO!!!!")
-				log.Println("Accumulated stripes:", stripes[string(roothash)])
+				fmt.Println("REACHED Gate ECHO!!!!")
+				fmt.Println("Accumulated stripes:", stripes[string(roothash)])
 				fmt.Println("[reliablebroadcast] Putting roothash ", roothash, " into retchan ", retChan)
 				retChan <- decode_output(roothash)
 				fmt.Println("[reliablebroadcast] Successfully put roothash ", roothash, " into retchan ", retChan)
@@ -335,15 +335,15 @@ func reliablebroadcast(
 					send(i, toBroadcast)
 				}
 			}
-			log.Println("Ready+1:", ready[string(roothash)]+1, "-- Echo:", echoCounter[string(roothash)])
+			fmt.Println("Ready+1:", ready[string(roothash)]+1, "-- Echo:", echoCounter[string(roothash)])
 			if ready[string(roothash)]+1 >= OutputThreshold && echoCounter[string(roothash)] >= K {
-				log.Println("REACHED Gate READY!!!!")
-				log.Println("Accumulated stripes:", stripes[string(roothash)])
+				fmt.Println("REACHED Gate READY!!!!")
+				fmt.Println("Accumulated stripes:", stripes[string(roothash)])
 				retChan <- decode_output(roothash)
 				break
 			}
 		} else {
-			log.Println("ERROR: Message Type Unknown!!!")
+			fmt.Println("ERROR: Message Type Unknown!!!")
 		}
 
 	}
