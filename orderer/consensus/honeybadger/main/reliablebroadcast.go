@@ -10,7 +10,7 @@ import (
 	// "fmt"
 
 	//"strings"
-	"time"
+	//"time"
 
 	"github.com/klauspost/reedsolomon"
 )
@@ -72,11 +72,13 @@ func decode(K int, N int, data [][]byte) string {
 	//recover padded string
 	msgString := ""
 	for i := 0; i < K; i++ {
-		nextChar := string(localData[i])
-		if nextChar != "&" {
-			msgString += string(localData[i])
-		}
+		byteSeq := localData[i]
 
+		for _, entry := range byteSeq {
+			if nextChar := string(entry); nextChar != "&" {
+				msgString += nextChar
+			}
+		}
 	}
 	fmt.Println("Decoding finished:", msgString)
 	return msgString
@@ -172,7 +174,7 @@ func reliablebroadcast(
 					Stripe:   codeword[i],
 				})
 
-			time.Sleep(time.Second * 3)
+			//time.Sleep(time.Second * 3)
 			send(i, toSend)
 		}
 	}
@@ -253,7 +255,7 @@ func reliablebroadcast(
 
 			for i := 0; i < N; i++ {
 
-				time.Sleep(time.Second * 3)
+				//time.Sleep(time.Second * 3)
 				send(i, toBroadcast)
 			}
 
@@ -290,7 +292,7 @@ func reliablebroadcast(
 					})
 				for i := 0; i < N; i++ {
 
-					time.Sleep(time.Second * 3)
+					//time.Sleep(time.Second * 3)
 					send(i, toBroadcast)
 				}
 			}
@@ -331,7 +333,7 @@ func reliablebroadcast(
 					})
 				for i := 0; i < N; i++ {
 
-					time.Sleep(time.Second * 3)
+					//time.Sleep(time.Second * 3)
 					send(i, toBroadcast)
 				}
 			}
