@@ -11,6 +11,7 @@ import (
 	"log"
 	mathrand "math/rand"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,6 +32,7 @@ var socket *zmq.Socket
 var serverPort string
 var clients = make(map[int]*zmq.Socket)
 var wg sync.WaitGroup
+var currentRound int
 
 var coin_recvs [](chan string)
 var aba_recvs [](chan string)
@@ -50,6 +52,7 @@ type honeybadger struct {
 }
 
 type hbMessage struct {
+	round   int
 	msgType string
 	channel int
 	msg     string
@@ -78,23 +81,31 @@ func Shuffle(vals []string) []string {
 }
 
 func random_selection(transaction_buffer []string, B int, N int) []string {
-	var shuffled = Shuffle(transaction_buffer[:B])
-	ret := make([]string, B/N)
-	for i := 0; i < B/N; i++ {
-		ret[i] = shuffled[i]
-	}
-	return ret
+	// var shuffled = Shuffle(transaction_buffer[:B])
+	// ret := make([]string, B/N)
+	// for i := 0; i < B/N; i++ {
+	// 	ret[i] = shuffled[i]
+	// }
+	// return ret
+	r := mathrand.New(mathrand.NewSource(time.Now().Unix()))
+	randIndex := r.Intn(B)
+	return []string{transaction_buffer[randIndex]}
 }
 
 func remove(txns []string, txn string) []string {
 	var idx = -1
+	pattern := regexp.MustCompile(`\s+`)
+	// res := pattern.ReplaceAllString(s, " ")
 	for i := 0; i < len(txns); i++ {
-		if txns[i] == txn {
+		if strings.ToLower(pattern.ReplaceAllString(txns[i], " ")) == strings.ToLower(pattern.ReplaceAllString(txn, " ")) {
 			idx = i
+			break
 		}
 	}
 	if idx != -1 {
 		return append(txns[:idx], txns[idx+1:]...)
+	} else {
+		fmt.Println("[remove] Did not find txn: ", txn, " in txns: ", txns)
 	}
 	return txns
 }
@@ -185,7 +196,7 @@ func broadcast_receiver(pid int) {
 }
 
 func sendMessages(to int, hbm hbMessage) {
-	var finalMessage string = hbm.msgType + "_" + strconv.Itoa(hbm.channel) + "_" + hbm.msg
+	var finalMessage string = strconv.Itoa(hbm.round) + "_" + hbm.msgType + "_" + strconv.Itoa(hbm.channel) + "_" + hbm.msg
 	fmt.Println("[sendMessages] Sending message ", finalMessage, " to ", to)
 	// for {
 	// 	lockErr := fileLocks[to].TryLock()
@@ -265,6 +276,16 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, rece
 		rbc_outputs[j] = make(chan string, 1)
 	}
 
+	coin_recvs = make([](chan string), hb.N)
+	aba_recvs = make([](chan string), hb.N)
+	rbc_recvs = make([](chan string), hb.N)
+
+	for j := 0; j < hb.N; j++ {
+		coin_recvs[j] = make(chan string, 100)
+		aba_recvs[j] = make(chan string, 100)
+		rbc_recvs[j] = make(chan string, 100)
+	}
+
 	my_rbc_input := make(chan string, 1)
 
 	setup := func(j int) {
@@ -274,14 +295,14 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, rece
 		// size N instead.
 
 		fmt.Println("[run_round] Spawning binary agreement for node ", j)
-		go binaryagreement(sid+"ABA"+strconv.Itoa(j), hb.pid, hb.N, hb.f, j, aba_inputs[j], aba_outputs[j], aba_recvs[j],
+		go binaryagreement(r, sid+"ABA"+strconv.Itoa(j), hb.pid, hb.N, hb.f, j, aba_inputs[j], aba_outputs[j], aba_recvs[j],
 			sid+"COIN"+strconv.Itoa(j), hb.pid, hb.N, hb.f, hb.sPK, hb.sSK, coin_recvs[j])
 
 		// These are supposed to be infinite sized channels. Initializing with
 		// size N instead.
 
 		fmt.Println("[run_round] Spawning reliable broadcast for node ", j)
-		go reliablebroadcast(sid+"RBC"+strconv.Itoa(j), hb.pid, hb.N, hb.f, j, my_rbc_input, rbc_recvs[j], rbc_outputs[j])
+		go reliablebroadcast(r, sid+"RBC"+strconv.Itoa(j), hb.pid, hb.N, hb.f, j, my_rbc_input, rbc_recvs[j], rbc_outputs[j])
 	}
 
 	for j := 0; j < hb.N; j++ {
@@ -309,6 +330,8 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, rece
 
 	fmt.Println("[run_round] Calling honeybadger_block for round ", r)
 	honeybadgerBlock(hb.pid, hb.N, hb.f, input, my_rbc_input, rbc_values, hb_block)
+
+	fmt.Println("[run_round] *********** Round ", r, " is complete! ***********")
 }
 
 func (hb *honeybadger) run(receiver *zmq.Socket) {
@@ -317,17 +340,9 @@ func (hb *honeybadger) run(receiver *zmq.Socket) {
 	hb_block := make(chan []string, 1)
 	var proposed []string
 
-	coin_recvs = make([](chan string), hb.N)
-	aba_recvs = make([](chan string), hb.N)
-	rbc_recvs = make([](chan string), hb.N)
-
-	for j := 0; j < hb.N; j++ {
-		coin_recvs[j] = make(chan string, 100)
-		aba_recvs[j] = make(chan string, 100)
-		rbc_recvs[j] = make(chan string, 100)
-	}
-
-	for round := 0; round < 1; round++ {
+	for round := 0; round < 3; round++ {
+		fmt.Println("[hooneybadger] round", round, " transaction_buffer: ", hb.transaction_buffer)
+		currentRound = round
 		proposed = random_selection(hb.transaction_buffer, hb.B, hb.N)
 		fmt.Println("Proposal for round ", round, ": ", proposed)
 
@@ -342,6 +357,9 @@ func (hb *honeybadger) run(receiver *zmq.Socket) {
 		}
 
 		new_txns = nil
+
+		fmt.Println("Sleeping for a while before going to next round.")
+		time.Sleep(5 * time.Second)
 	}
 }
 
@@ -507,15 +525,19 @@ func main() {
 			fmt.Println("[main] ", message)
 			// Parse the message
 			splitMsg := strings.Split(message, "_")
-			msgType := splitMsg[0]
-			channel, _ := strconv.Atoi(splitMsg[1])
-			msg := strings.Join(splitMsg[2:], "_")
+			round, _ := strconv.Atoi(splitMsg[0])
 
-			if msgType != "IGNORE" {
-				channel := getChannelFromMsg(msgType, channel)
+			if round == currentRound {
+				msgType := splitMsg[1]
+				channel, _ := strconv.Atoi(splitMsg[2])
+				msg := strings.Join(splitMsg[3:], "_")
 
-				// Put message in apt channel
-				channel <- msg
+				if msgType != "IGNORE" {
+					channel := getChannelFromMsg(msgType, channel)
+
+					// Put message in apt channel
+					channel <- msg
+				}
 			}
 		}
 	}()

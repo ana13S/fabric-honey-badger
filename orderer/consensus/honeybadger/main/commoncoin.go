@@ -18,12 +18,13 @@ func hash(msg string) []byte {
 	return h.Sum(nil)
 }
 
-func sig_msg_stringify(pid int, r int, msg tcrsa.SigShare) hbMessage {
+func sig_msg_stringify(round int, pid int, r int, msg tcrsa.SigShare) hbMessage {
 	marsh, _ := json.Marshal(msg)
 	message := string(marsh)
 	msgType := "COIN"
 	channel := pid
 	return hbMessage{
+		round:   round,
 		msgType: msgType,
 		channel: channel,
 		msg:     strconv.Itoa(r) + "_" + message,
@@ -51,7 +52,7 @@ func broadcast_loop(msg hbMessage, killChan chan string) {
 
 // keyMeta holds public key
 // keyShare holds values for specific node(including something similar to secret key)
-func shared_coin(sid string, pid int, N int, f int, channel int, meta tcrsa.KeyMeta, keyShare tcrsa.KeyShare,
+func shared_coin(round int, sid string, pid int, N int, f int, channel int, meta tcrsa.KeyMeta, keyShare tcrsa.KeyShare,
 	receive chan string, r int) int {
 
 	docHash, docPK := threshsig.HashMessage(sid+strconv.Itoa(r), &meta) // h = PK.hash_message(str((sid, r)))
@@ -69,7 +70,7 @@ func shared_coin(sid string, pid int, N int, f int, channel int, meta tcrsa.KeyM
 	shareMap[sigShare.Id] = true
 
 	// Keep broadcasting till we get enough sigShares
-	broadcast(sig_msg_stringify(channel, r, sigShare))
+	broadcast(sig_msg_stringify(round, channel, r, sigShare))
 
 	for i := 1; i < int(meta.K); {
 		msg := <-receive

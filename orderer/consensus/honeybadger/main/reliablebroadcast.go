@@ -10,7 +10,7 @@ import (
 	// "fmt"
 
 	//"strings"
-	//"time"
+	"time"
 
 	"github.com/klauspost/reedsolomon"
 )
@@ -112,12 +112,18 @@ type Rb_msg struct {
 	Stripe   []byte
 }
 
-func rb_msg_stringify(leader int, msg Rb_msg) hbMessage {
+func rb_msg_stringify(msg Rb_msg) string {
 	marsh, _ := json.Marshal(msg)
 	message := string(marsh)
+	return message
+}
+
+func broadcast_rbc(round int, leader int, msg Rb_msg) hbMessage {
+	message := rb_msg_stringify(msg)
 	msgType := "RBC"
 	channel := leader
 	return hbMessage{
+		round:   round,
 		msgType: msgType,
 		channel: channel,
 		msg:     message,
@@ -131,6 +137,7 @@ func rb_msg_parse(msg string) Rb_msg {
 }
 
 func reliablebroadcast(
+	round int,
 	sid string,
 	pid int,
 	N int,
@@ -141,6 +148,7 @@ func reliablebroadcast(
 	// send func(i int, msg string),
 	retChan chan<- string) {
 
+	fmt.Println("[reliablebroadcast] Starting RBC with sid: ", sid)
 	// default code
 	K := N - 2*f            // Need this many to reconstruct. (# noqa: E221)
 	EchoThreshold := N - f  // Wait for this many ECHO to send READY. (# noqa: E221)
@@ -163,7 +171,8 @@ func reliablebroadcast(
 
 		for i := 0; i < N; i++ {
 
-			toSend := rb_msg_stringify(
+			toSend := broadcast_rbc(
+				round,
 				leader,
 				Rb_msg{
 					Pid:      pid, //self
@@ -174,7 +183,7 @@ func reliablebroadcast(
 					Stripe:   codeword[i],
 				})
 
-			//time.Sleep(time.Second * 3)
+			time.Sleep(time.Second * 3)
 			send(i, toSend)
 		}
 	}
@@ -186,6 +195,8 @@ func reliablebroadcast(
 	readySent := false
 
 	ready := make(map[string]int)
+
+	// messagesSent := make(map[Rb_msg]bool)
 
 	decode_output := func(roothash []byte) string {
 
@@ -242,7 +253,8 @@ func reliablebroadcast(
 			}
 			stripes[string(roothash)][recipient] = stripe
 
-			toBroadcast := rb_msg_stringify(
+			toBroadcast := broadcast_rbc(
+				round,
 				leader,
 				Rb_msg{
 					Pid:      pid,
@@ -255,7 +267,7 @@ func reliablebroadcast(
 
 			for i := 0; i < N; i++ {
 
-				//time.Sleep(time.Second * 3)
+				time.Sleep(time.Second * 3)
 				send(i, toBroadcast)
 			}
 
@@ -280,21 +292,28 @@ func reliablebroadcast(
 
 			if echoCounter[string(roothash)] >= EchoThreshold && !readySent {
 				readySent = true
-				toBroadcast := rb_msg_stringify(
-					leader,
-					Rb_msg{
-						Pid:      pid,
-						Sid:      recipient,
-						MsgType:  "READY",
-						Roothash: roothash,
-						Branch:   branch,
-						Stripe:   stripe,
-					})
-				for i := 0; i < N; i++ {
-
-					//time.Sleep(time.Second * 3)
-					send(i, toBroadcast)
+				msg := Rb_msg{
+					Pid:      pid,
+					Sid:      recipient,
+					MsgType:  "READY",
+					Roothash: roothash,
+					Branch:   branch,
+					Stripe:   stripe,
 				}
+
+				// for i := 0; i < N; i++ {
+
+				// time.Sleep(time.Second * 3)
+				// send(i, toBroadcast)
+				// }
+				// _, ok = messagesSent[msg]
+				// if !ok {
+				// 	toBroadcast := broadcast_rbc(round, leader, msg)
+				// 	broadcast(toBroadcast)
+				// 	messagesSent[msg] = true
+				// }
+				toBroadcast := broadcast_rbc(round, leader, msg)
+				broadcast(toBroadcast)
 			}
 
 			headcount := ready[string(roothash)]
@@ -306,7 +325,8 @@ func reliablebroadcast(
 				fmt.Println("[reliablebroadcast] Putting roothash ", roothash, " into retchan ", retChan)
 				retChan <- decode_output(roothash)
 				fmt.Println("[reliablebroadcast] Successfully put roothash ", roothash, " into retchan ", retChan)
-				break
+				fmt.Println("[reliablebroadcast] Returning from RBC sid: ", sid, " leader: ", leader)
+				return
 			}
 
 		} else if recvd_msg.MsgType == "READY" {
@@ -321,28 +341,36 @@ func reliablebroadcast(
 
 			if ready[string(roothash)] >= ReadyThreshold && !readySent {
 				readySent = true
-				toBroadcast := rb_msg_stringify(
-					leader,
-					Rb_msg{
-						Pid:      pid,
-						Sid:      recipient,
-						MsgType:  "READY",
-						Roothash: roothash,
-						Branch:   branch,
-						Stripe:   stripe,
-					})
-				for i := 0; i < N; i++ {
-
-					//time.Sleep(time.Second * 3)
-					send(i, toBroadcast)
+				msg := Rb_msg{
+					Pid:      pid,
+					Sid:      recipient,
+					MsgType:  "READY",
+					Roothash: roothash,
+					Branch:   branch,
+					Stripe:   stripe,
 				}
+
+				// for i := 0; i < N; i++ {
+
+				// time.Sleep(time.Second * 3)
+				// send(i, toBroadcast)
+				// }
+				// _, ok := messagesSent[msg]
+				// if !ok {
+				// 	toBroadcast := broadcast_rbc(round, leader, msg)
+				// 	broadcast(toBroadcast)
+				// 	messagesSent[msg] = true
+				// }
+				toBroadcast := broadcast_rbc(round, leader, msg)
+				broadcast(toBroadcast)
 			}
-			fmt.Println("Ready+1:", ready[string(roothash)]+1, "-- Echo:", echoCounter[string(roothash)])
+			fmt.Println("[reliablebroadcast] sid: ", sid, " Ready+1:", ready[string(roothash)]+1, "-- Echo:", echoCounter[string(roothash)])
 			if ready[string(roothash)]+1 >= OutputThreshold && echoCounter[string(roothash)] >= K {
-				fmt.Println("REACHED Gate READY!!!!")
-				fmt.Println("Accumulated stripes:", stripes[string(roothash)])
+				fmt.Println("[reliablebroadcast] sid: ", sid, "REACHED Gate READY!!!!")
+				fmt.Println("[reliablebroadcast] sid: ", sid, "Accumulated stripes:", stripes[string(roothash)])
 				retChan <- decode_output(roothash)
-				break
+				fmt.Println("[reliablebroadcast] Returning from RBC sid: ", sid, " leader: ", leader)
+				return
 			}
 		} else {
 			fmt.Println("ERROR: Message Type Unknown!!!")
