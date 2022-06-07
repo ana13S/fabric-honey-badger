@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"threshsig"
+	"time"
 )
 
 func hash(msg string) []byte {
@@ -35,6 +36,11 @@ func sig_msg_parse(msg string) tcrsa.SigShare {
 	var new_sig_msg tcrsa.SigShare
 	json.Unmarshal([]byte(msg), &new_sig_msg)
 	return new_sig_msg
+}
+
+func put_delay(msg string, receive chan string) {
+	time.Sleep(time.Second * 1)
+	receive <- msg
 }
 
 func broadcast_loop(msg hbMessage, killChan chan string) {
@@ -77,6 +83,7 @@ func shared_coin(round int, sid string, pid int, N int, f int, channel int, meta
 		received := strings.Split(msg, "_") // Get round of sigShare
 		if received[0] != strconv.Itoa(r) {
 			fmt.Println("[commoncoin] In round ", r, ", Received signature share from node in wrong round, ", received[0])
+			go put_delay(msg, receive)
 			continue
 		}
 		shares[i] = sig_msg_parse(received[1])
