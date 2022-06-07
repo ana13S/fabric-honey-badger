@@ -10,6 +10,7 @@ import (
 	// "github.com/stretchr/testify/assert"
 	// "github.com/vishalmohanty/encryption"
 	// "github.com/vishalmohanty/go_threshenc"
+	"strconv"
 )
 
 /*
@@ -60,15 +61,21 @@ func honeybadgerBlock(pid int, N int, f int, propose_in <-chan string, acs_in ch
 
 	var committed_txns []string
 	txn_map := make(map[string]bool)
+	vis_transaction := "";
 	for _, txn := range vall {
 		if txn != "FAILURE" {
 			_, ok := txn_map[txn]
 			if !ok {
 				committed_txns = append(committed_txns, txn)
+				vis_transaction = vis_transaction + txn + "\n"
 				txn_map[txn] = true
 			}
 		}
 	}
+
+	ff, _ := os.OpenFile("visualization/" + strconv.Itoa(pid) + ".txt", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	defer ff.Close()
+	ff.WriteString(vis_transaction + "\n")
 
 	fmt.Println("[honeybadger_block] Committed Transactions", committed_txns)
 

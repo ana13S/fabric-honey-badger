@@ -1,0 +1,13 @@
+From: C To: D Amt: 50
+From: B To: C Amt: 200
+From: A To: B Amt: 100
+
+From: E To: B Amt: 100
+From: D To: B Amt: 300
+From: F To: C Amt: 200
+
+From: H To: B Amt: 300
+From: G To: D Amt: 50
+From: I To: B Amt: 100
+From: J To: C Amt: 200
+
