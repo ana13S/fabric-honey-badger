@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
-	// "testing"
-	// "github.com/stretchr/testify/assert"
 )
 
 // We are supporting only one transaction at a time
@@ -100,16 +98,6 @@ func commonsubset(pid int, N int, f int, rbc_out []chan string, aba_in []chan in
 	// wait for the corresponding broadcasts
 	for j := 0; j < N; j++ {
 		if aba_values[j] == 1 {
-
-			// wait for jth recv_rbc goroutine to finish
-			// <-recv_rbc_joinChans[j]
-
-			// nonetype error handling
-			// Check value in rbc
-			// val := <-rbc_values[j]
-			// if val == "" {
-			// 	panic("Expected val to not be empty")
-			// }
 			fmt.Println("[commonsubset] aba_values[", j, "] is 1")
 		} else {
 
@@ -118,6 +106,4 @@ func commonsubset(pid int, N int, f int, rbc_out []chan string, aba_in []chan in
 	}
 
 	fmt.Println("[commonsubset] Finished")
-
-	// Return values can be received through rbc_values channels
 }

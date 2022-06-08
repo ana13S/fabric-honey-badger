@@ -7,16 +7,6 @@ import (
 	"strings"
 )
 
-// place-holder function that is cross-process communication.
-// func broadcast(prefix string, round int, value int, sender int) {
-// 	fmt.Println("Broadcasting " + prefix + ", round: " + strconv.Itoa(round) + ", value: " + strconv.Itoa(value) + ", sender: " + strconv.Itoa(sender))
-// }
-
-// place-holder function that is get coin.
-func get_coin() int {
-	return 1
-}
-
 type message struct {
 	prefix   string
 	round    int

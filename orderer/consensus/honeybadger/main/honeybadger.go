@@ -81,12 +81,6 @@ func Shuffle(vals []string) []string {
 }
 
 func random_selection(transaction_buffer []string, B int, N int) []string {
-	// var shuffled = Shuffle(transaction_buffer[:B])
-	// ret := make([]string, B/N)
-	// for i := 0; i < B/N; i++ {
-	// 	ret[i] = shuffled[i]
-	// }
-	// return ret
 	r := mathrand.New(mathrand.NewSource(time.Now().Unix()))
 	randIndex := r.Intn(B)
 	return []string{transaction_buffer[randIndex]}
@@ -95,7 +89,6 @@ func random_selection(transaction_buffer []string, B int, N int) []string {
 func remove(txns []string, txn string) []string {
 	var idx = -1
 	pattern := regexp.MustCompile(`\s+`)
-	// res := pattern.ReplaceAllString(s, " ")
 	for i := 0; i < len(txns); i++ {
 		if strings.ToLower(pattern.ReplaceAllString(txns[i], " ")) == strings.ToLower(pattern.ReplaceAllString(txn, " ")) {
 			idx = i
@@ -125,99 +118,16 @@ func getChannelFromMsg(
 	}
 }
 
-func handleMessageToSelf(hbm hbMessage) {
-	channel := getChannelFromMsg(hbm.msgType, hbm.channel)
-	channel <- hbm.msg
-}
-
-// func sendMessages(to int, hbm hbMessage) {
-// 	//Client port that sends messages
-// 	// socket.Connect("tcp://localhost:" + port)
-// 	if pid != to {
-// 		var finalMessage string = hbm.msgType + "_" + strconv.Itoa(hbm.channel) + "_" + hbm.msg
-// 		fmt.Println("[sendMessages] Sending message ", finalMessage, " to ", to)
-// 		clients[to].Send(finalMessage, 0)
-
-// 		reply, _ := clients[to].Recv(0)
-// 		fmt.Println("[sendMessages] Received ", reply)
-// 	} else {
-// 		fmt.Println("[sendMessages] Sending message ", hbm.msg, " to self.")
-// 		handleMessageToSelf(hbm)
-// 		fmt.Println("[sendMessages] Sent message ", hbm.msg, " to self.")
-// 	}
-// }
-
-func broadcast_receiver(pid int) {
-	for {
-		for {
-			lockErr := fileLocks[pid].TryLock()
-			if lockErr != nil {
-				fmt.Println("[broadcast_receiver] Falied to acquire lock > "+lockErr.Error(), " for ", files[pid], " sleeping for a second and retrying")
-			} else {
-				break
-			}
-			time.Sleep(5 * time.Second)
-		}
-
-		fmt.Println("[broadcast_receiver] Opening file ", files[pid], " for reading.")
-
-		// optionally, resize scanner's capacity for lines over 64K, see next example
-		for readScanner.Scan() {
-			message := readScanner.Text()
-
-			fmt.Println("[broadcast_receiver] Message to be parse: ", message)
-
-			// Parse the message
-			splitMsg := strings.Split(message, "_")
-			msgType := splitMsg[0]
-			channel, _ := strconv.Atoi(splitMsg[1])
-			msg := splitMsg[2]
-
-			if msgType != "IGNORE" {
-				channel := getChannelFromMsg(msgType, channel)
-
-				// Put message in apt channel
-				channel <- msg
-			}
-		}
-
-		if err := readScanner.Err(); err != nil {
-			log.Fatal(err)
-		}
-
-		fmt.Println("[broadcast_receiver] Messages read from file ", files[pid], ". Deleting file contents and Releasing the lock")
-		// release the lock
-		// if err := os.Truncate(files[pid], 0); err != nil {
-		// 	log.Printf("Failed to truncate: %v", err)
-		// }
-		fileLocks[pid].Unlock()
-		time.Sleep(5 * time.Second)
-	}
-}
-
 func sendMessages(to int, hbm hbMessage) {
 	var finalMessage string = strconv.Itoa(hbm.round) + "_" + hbm.msgType + "_" + strconv.Itoa(hbm.channel) + "_" + hbm.msg
 	fmt.Println("[sendMessages] Sending message ", finalMessage, " to ", to)
-	// for {
-	// 	lockErr := fileLocks[to].TryLock()
-	// 	if lockErr != nil {
-	// 		fmt.Println("[sendMessages] Falied to acquire lock > "+lockErr.Error(), " for ", files[to], " sleeping for a second and retrying")
-	// 	} else {
-	// 		break
-	// 	}
-	// 	time.Sleep(time.Second)
-	// }
-
 	_, err2 := writeFileHandlers[to].WriteString(finalMessage + "\n")
 
 	if err2 != nil {
 		log.Fatal(err2)
 	}
 
-	fmt.Println("[sendMessages] Message sent: ", finalMessage, " to ", to)
-	// release the lock
-	// fileLocks[to].Unlock()
-	time.Sleep(1 * time.Second)
+	time.Sleep(500 * time.Millisecond)
 }
 
 func send(to int, msg hbMessage) {
@@ -229,37 +139,6 @@ func broadcast(hbm hbMessage) {
 		sendMessages(i, hbm)
 	}
 }
-
-// func broadcast_receiver(s *zmq.Socket) {
-// 	// s, _ := zctx.NewSocket(zmq.REP)
-// 	// s.Bind("tcp://*:" + serverPort)
-
-// 	for {
-// 		// Wait for next request from client
-// 		message, _ := s.Recv(0)
-// 		fmt.Println("[broadcast_receiver] Received ", message)
-
-// 		// Parse the message
-// 		splitMsg := strings.Split(message, "_")
-// 		msgType := splitMsg[0]
-// 		channel, _ := strconv.Atoi(splitMsg[1])
-// 		msg := splitMsg[2]
-
-// 		if msgType != "IGNORE" {
-// 			channel := getChannelFromMsg(msgType, channel)
-
-// 			// Put message in apt channel
-// 			channel <- msg
-// 		}
-
-// 		// Do some 'work'
-// 		time.Sleep(time.Second * 1)
-
-// 		// Send reply back to client
-// 		fmt.Println("[broadcast_receiver] Sending Ignore message as reply")
-// 		s.Send("IGNORE_"+strconv.Itoa(pid)+"_"+strconv.Itoa(channel), 0)
-// 	}
-// }
 
 func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, receiver *zmq.Socket) {
 	fmt.Println("[run_round] Running round ", r, " proposed txn: ", txn)
@@ -308,8 +187,6 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, rece
 	for j := 0; j < hb.N; j++ {
 		setup(j)
 	}
-	// setup(0)
-	// setup(1)
 
 	rbc_values := make([]chan string, hb.N)
 
@@ -319,10 +196,6 @@ func (hb *honeybadger) run_round(r int, txn string, hb_block chan []string, rece
 
 	fmt.Println("[run_round] Spawning common subset")
 	go commonsubset(hb.pid, hb.N, hb.f, rbc_outputs, aba_inputs, aba_outputs, rbc_values)
-
-	// fmt.Println("[run_round] Spawning broadcast receiver")
-	// go broadcast_receiver(receiver)
-	// go broadcast_receiver(hb.pid)
 
 	fmt.Println("[run_round] Adding txn ", txn, " to input channel.")
 	input := make(chan string, 1)
@@ -341,6 +214,7 @@ func (hb *honeybadger) run(receiver *zmq.Socket) {
 	var proposed []string
 
 	for round := 0; round < 3; round++ {
+		start := time.Now()
 		fmt.Println("[hooneybadger] round", round, " transaction_buffer: ", hb.transaction_buffer)
 		currentRound = round
 		proposed = random_selection(hb.transaction_buffer, hb.B, hb.N)
@@ -359,6 +233,10 @@ func (hb *honeybadger) run(receiver *zmq.Socket) {
 		new_txns = nil
 
 		fmt.Println("Sleeping for a while before going to next round.")
+		t := time.Now()
+		elapsed := t.Sub(start)
+
+		fmt.Println("\n\n**********Time for round ", round, ": ", elapsed, "************\n\n")
 		time.Sleep(5 * time.Second)
 	}
 }
@@ -472,32 +350,11 @@ func main() {
 		transaction_buffer: transaction_buffer,
 	}
 
-	// for i := 0; i < N; i++ {
-	// 	if i != pid {
-	// 		clients[i], _ = zctx.NewSocket(zmq.REQ)
-	// 		defer clients[i].Close()
-	// 		clients[i].Connect("tcp://localhost:" + all_ports[i])
-
-	// 		fmt.Println("[main] Sending hello to ", i)
-	// 		clients[i].Send("Hello from "+strconv.Itoa(pid), 0)
-
-	// 		msg, _ := clients[i].Recv(0)
-	// 		fmt.Printf("[main] Received reply from %d: %s\n", i, msg)
-	// 	}
-	// }
-
-	// time.Sleep(5 * time.Second)
-
-	// fmt.Println("[main] Waiting for sync go routines to complete")
-	// wg.Wait()
-
-	// time.Sleep(10 * time.Second)
-
 	if err := os.Truncate(files[pid], 0); err != nil {
 		log.Printf("Failed to truncate: %v", err)
 	}
 
-	if err := os.Truncate("visualization/" + strconv.Itoa(pid) + ".txt", 0); err != nil {
+	if err := os.Truncate("visualization/"+strconv.Itoa(pid)+".txt", 0); err != nil {
 		log.Printf("Failed to truncate: %v", err)
 	}
 
