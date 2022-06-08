@@ -1,3 +1,19 @@
+# Gobadger
+
+Honeybadger in Golang by Vishal Mohanty, Keller Blackwell, Zhiling Huang and Ana Selvaraj for CS 244B.
+
+Integration with fabric is a WIP
+
+To run:
+1. go build *.go in /orderer/consensus/honeybadger/main
+2. go test # To generate keys for threshold signature (takes approximately a minute)
+3. Create files 5000.txt, 5010.txt, 5020.txt, 5040.txt (log files for each Honeybadger node)
+4. Edit file transaction.log in  /orderer/consensus/honeybadger/main to change proposed transactions
+4. ./basicTest_3rounds.sh # Script for basic test case N = 4
+5. python visualization.py /orderer/consensus/honeybadger/main/visualization/<pid>.txt to see published transactions for a specific Honeybadger node
+
+
+
 # Hyperledger Fabric
 
 [![Build Status](https://dev.azure.com/Hyperledger/Fabric/_apis/build/status/Merge?branchName=main)](https://dev.azure.com/Hyperledger/Fabric/_build/latest?definitionId=51&branchName=main)
