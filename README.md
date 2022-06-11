@@ -2,9 +2,7 @@
 
 Honeybadger in Golang by Vishal Mohanty, Keller Blackwell, Zhiling Huang and Ana Selvaraj for CS 244B.
 
-Integration with fabric is a WIP
-
-To run:
+To run for 4 nodes:
 1. go build *.go in /orderer/consensus/honeybadger/main
 2. go test # To generate keys for threshold signature (takes approximately a minute)
 3. Create files 5000.txt, 5010.txt, 5020.txt, 5040.txt (log files for each Honeybadger node)
