@@ -1,6 +1,6 @@
-# Gobadger
+# GoBadger
 
-Honeybadger in Golang by Vishal Mohanty, Keller Blackwell, Zhiling Huang and Ana Selvaraj for CS 244B.
+Honeybadger Implementation in Golang by Vishal Mohanty, Keller Blackwell, Zhiling Huang and Ana Selvaraj for Stanford CS 244B.
 
 To run for 4 nodes:
 1. go build *.go in /orderer/consensus/honeybadger/main
